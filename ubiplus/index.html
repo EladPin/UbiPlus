@@ -1,0 +1,137 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>UbiPlus — Ubiqam Fleet Monitor</title>
+<link rel="stylesheet" href="fonts/fonts.css">
+<link rel="stylesheet" href="css/main.css">
+</head>
+<body>
+
+<header class="hdr">
+  <div class="hdr-brand">
+    <div class="logo">UBIPLUS</div>
+    <div class="tagline">UBIQAM FLEET MONITOR</div>
+  </div>
+
+  <div class="hdr-stats" id="hdrStats">
+    <!-- filled by UI.renderStats() -->
+  </div>
+
+  <div class="hdr-actions">
+    <label class="demo-toggle" title="Demo mode — fabricates telnet output for UI work off the OSP">
+      <input type="checkbox" id="chkDemo" onchange="CHECK.setDemo(this.checked)">
+      <span class="demo-track"><span class="demo-thumb"></span></span>
+      <span class="demo-label">DEMO</span>
+    </label>
+    <button class="btn-ghost" id="btnTheme" onclick="THEMEX.toggle()">LIGHT</button>
+    <button class="btn-ghost" onclick="UNITMODAL.open()">+ ADD UNIT</button>
+    <button class="btn-cta" id="btnCheckAll" onclick="CHECK.all()">▶ CHECK ALL</button>
+  </div>
+</header>
+
+<main class="board">
+  <div class="empty-hint" id="emptyHint">
+    <div class="eh-title">No Ubiqam units yet</div>
+    <div class="eh-sub">Add your first unit — site name, IP and telnet port.<br>
+    The list is saved locally and will be here next time.</div>
+    <button class="btn-cta" onclick="UNITMODAL.open()">+ Add first unit</button>
+  </div>
+
+  <div class="grid" id="unitGrid"></div>
+</main>
+
+<!-- ============ ADD / EDIT UNIT MODAL ============ -->
+<div class="modal-overlay" id="unitModal">
+  <div class="modal">
+    <div class="modal-head">
+      <div class="modal-title" id="umTitle">ADD UNIT</div>
+      <button class="modal-x" onclick="UNITMODAL.close()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="frow">
+        <label>SITE NAME</label>
+        <input type="text" id="umName" placeholder="e.g. Maof" autocomplete="off">
+      </div>
+      <div class="frow-2">
+        <div class="frow">
+          <label>IP ADDRESS</label>
+          <input type="text" id="umIp" placeholder="10.20.30.40" autocomplete="off">
+        </div>
+        <div class="frow frow-port">
+          <label>PORT</label>
+          <input type="number" id="umPort" value="23" min="1" max="65535">
+        </div>
+      </div>
+      <div class="frow-2">
+        <div class="frow">
+          <label>USERNAME <span class="opt">optional</span></label>
+          <input type="text" id="umUser" autocomplete="off">
+        </div>
+        <div class="frow">
+          <label>PASSWORD <span class="opt">optional</span></label>
+          <input type="password" id="umPass" autocomplete="off">
+        </div>
+      </div>
+      <div class="frow">
+        <label>NOTE <span class="opt">optional</span></label>
+        <input type="text" id="umNote" placeholder="e.g. north mast, near sector 2" autocomplete="off">
+      </div>
+      <div class="um-err" id="umErr"></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn-danger-ghost" id="umDelete" onclick="UNITMODAL.del()" style="display:none">DELETE</button>
+      <div class="modal-foot-spacer"></div>
+      <button class="btn-ghost" onclick="UNITMODAL.close()">CANCEL</button>
+      <button class="btn-cta" id="umSave" onclick="UNITMODAL.save()">SAVE UNIT</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ RAW OUTPUT MODAL ============ -->
+<div class="modal-overlay" id="rawModal">
+  <div class="modal modal-wide">
+    <div class="modal-head">
+      <div class="modal-title" id="rawTitle">SESSION OUTPUT</div>
+      <button class="modal-x" onclick="UI.closeRaw()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="raw-meta" id="rawMeta"></div>
+      <pre class="raw-pre" id="rawPre"></pre>
+    </div>
+    <div class="modal-foot">
+      <div class="modal-foot-spacer"></div>
+      <button class="btn-ghost" onclick="UI.closeRaw()">CLOSE</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast-wrap" id="toastWrap"></div>
+
+<script src="js/data.js"></script>
+<script src="js/statuscheck.js"></script>
+<script src="js/unitmodal.js"></script>
+<script src="js/ui.js"></script>
+<script>
+// theme toggle (dark is default)
+const THEMEX = {
+  toggle() {
+    const light = !document.documentElement.classList.contains('light');
+    this._apply(light ? 'light' : 'dark');
+  },
+  _apply(t) {
+    document.documentElement.classList.toggle('light', t === 'light');
+    document.getElementById('btnTheme').textContent = t === 'light' ? 'DARK' : 'LIGHT';
+    localStorage.setItem('ubiplus_theme', t);
+  }
+};
+THEMEX._apply(localStorage.getItem('ubiplus_theme') || 'dark');
+
+// boot
+UDATA.load();
+CHECK.initDemo();
+UI.renderAll();
+</script>
+</body>
+</html>
