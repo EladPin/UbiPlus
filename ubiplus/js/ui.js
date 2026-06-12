@@ -52,15 +52,16 @@ const UI = {
     const sel = this.selectMode && this.selected.has(u.id);
     const sp = this.selectMode ? 'event.stopPropagation();' : '';
 
+    const stCls = s => `st-${this.STATUS_META[s] ? s : 'unchecked'}`; // badge color pair lives in CSS
     const sectors = u.sectors || [];
     const statusHTML = sectors.length
       ? `<span class="sector-chips">${sectors.map((s, i) => {
           const sm = this.STATUS_META[s] || this.STATUS_META.unchecked;
-          return `<span class="schip" style="background:${sm.color}" title="Sector ${i + 1}: ${sm.label}">S${i + 1}</span>`;
+          return `<span class="schip ${stCls(s)}" title="Sector ${i + 1}: ${sm.label}">S${i + 1}</span>`;
         }).join('')}</span>`
-      : `<span class="status-pill"><span class="sp-dot"></span>${m.label}</span>`;
+      : `<span class="status-pill ${stCls(u.status)}"><span class="sp-dot"></span>${m.label}</span>`;
 
-    return `<div class="card${this.selectMode ? ' selectable' : ''}${sel ? ' selected' : ''}" data-id="${u.id}" data-st="${u.status}" style="--st-col:${m.color}"${this.selectMode ? ` onclick="UI.toggleSelect('${u.id}')"` : ''}>
+    return `<div class="card${this.selectMode ? ' selectable' : ''}${sel ? ' selected' : ''}" data-id="${u.id}" data-st="${u.status}"${this.selectMode ? ` onclick="UI.toggleSelect('${u.id}')"` : ''}>
       <div class="card-top">
         ${this.selectMode ? `<div class="card-sel-dot">${sel ? '✓' : ''}</div>` : ''}
         <div class="card-name">${esc(u.name)}</div>
@@ -131,15 +132,16 @@ const UI = {
   // ---- changes modal: previous check vs latest ----
   openDiff() {
     const esc = s => String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
+    const stCls = s => `st-${this.STATUS_META[s] ? s : 'unchecked'}`;
     const chips = (status, sectors) => {
       if (sectors && sectors.length) {
         return sectors.map((s, i) => {
           const sm = this.STATUS_META[s] || this.STATUS_META.unchecked;
-          return `<span class="schip" style="background:${sm.color}" title="Sector ${i + 1}: ${sm.label}">S${i + 1}</span>`;
+          return `<span class="schip ${stCls(s)}" title="Sector ${i + 1}: ${sm.label}">S${i + 1}</span>`;
         }).join('');
       }
       const m = this.STATUS_META[status] || this.STATUS_META.unchecked;
-      return `<span class="schip" style="background:${m.color}">${m.label}</span>`;
+      return `<span class="schip ${stCls(status)}">${m.label}</span>`;
     };
 
     const changed = UDATA.units.filter(u => UDATA.changed(u));

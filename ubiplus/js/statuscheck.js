@@ -42,9 +42,9 @@ const CHECK = {
     u._checking = true;
     UI.renderCard(id);
 
-    // solo check: send the knight over (check-all dispatches him itself)
-    const solo = !this._running && KNIGHT.enabled;
-    if (solo) KNIGHT.visit(id);
+    // solo check: send the cat over (check-all dispatches it itself)
+    const solo = !this._running && CAT.enabled;
+    if (solo) CAT.visit(id);
 
     let result;
     if (this.demo) {
@@ -88,7 +88,7 @@ const CHECK = {
 
     UI.renderCard(id);
     UI.renderStats();
-    if (solo) { KNIGHT.endWork(); KNIGHT.park(); }
+    if (solo) { CAT.endWork(); CAT.park(); }
     return UDATA.get(id).status;
   },
 
@@ -107,11 +107,11 @@ const CHECK = {
     for (const u of [...UDATA.units]) {
       if (this._abort) break;
       btn.textContent = `■ STOP  ${++done}/${total}`;
-      // knight walks over while the check is already in flight
+      // cat walks over while the check is already in flight
       const p = this.unit(u.id);
-      await KNIGHT.visit(u.id);
+      await CAT.visit(u.id);
       await p;
-      await KNIGHT.endWork();
+      await CAT.endWork();
     }
 
     const aborted = this._abort;
@@ -119,8 +119,8 @@ const CHECK = {
     this._abort = false;
     btn.classList.remove('is-stop');
     btn.textContent = '▶ CHECK ALL';
-    KNIGHT.celebrate();
-    KNIGHT.park();
+    CAT.celebrate();
+    CAT.park();
 
     const c = UDATA.counts();
     const chg = UDATA.units.filter(u => UDATA.changed(u)).length;
