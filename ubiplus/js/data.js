@@ -24,6 +24,7 @@ const UDATA = {
       id: 'u_' + Date.now() + '_' + Math.floor(Math.random() * 1000),
       name, ip, port, user, pass, note,
       status: 'unchecked',
+      sectors: [],          // per-sector modes from last check, e.g. ['inline','bypass']
       lastCheck: null,
       lastRaw: null,
     };
@@ -45,9 +46,17 @@ const UDATA = {
     this.save();
   },
 
+  // true when the latest check differs from the previous one (status or any sector)
+  changed(u) {
+    if (!u.prevCheck) return false;
+    if (u.prevStatus !== u.status) return true;
+    const a = u.prevSectors || [], b = u.sectors || [];
+    return a.length !== b.length || a.some((s, i) => s !== b[i]);
+  },
+
   // header stat counts by status
   counts() {
-    const c = { inline: 0, bypass: 0, transparent: 0, offline: 0, unchecked: 0 };
+    const c = { inline: 0, mixed: 0, bypass: 0, transparent: 0, offline: 0, unchecked: 0 };
     for (const u of this.units) c[u.status] = (c[u.status] || 0) + 1;
     return c;
   },

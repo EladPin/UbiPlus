@@ -13,9 +13,9 @@ const UNITMODAL = {
 
     document.getElementById('umName').value = u ? u.name : '';
     document.getElementById('umIp').value = u ? u.ip : '';
-    document.getElementById('umPort').value = u ? u.port : 23;
-    document.getElementById('umUser').value = u ? (u.user || '') : '';
-    document.getElementById('umPass').value = u ? (u.pass || '') : '';
+    document.getElementById('umPort').value = u ? u.port : 10001;
+    document.getElementById('umUser').value = u ? (u.user || '') : 'idfuser';
+    document.getElementById('umPass').value = u ? (u.pass || '') : '6ehdZgg4';
     document.getElementById('umNote').value = u ? (u.note || '') : '';
 
     document.getElementById('unitModal').classList.add('open');
@@ -69,6 +69,8 @@ const UNITMODAL = {
 // Escape closes whichever modal is open
 document.addEventListener('keydown', e => {
   if (e.key !== 'Escape') return;
-  if (document.getElementById('unitModal').classList.contains('open')) UNITMODAL.close();
+  if (document.getElementById('toolsMenu').classList.contains('open')) TOOLSMENU.close();
+  else if (document.getElementById('unitModal').classList.contains('open')) UNITMODAL.close();
   else if (document.getElementById('rawModal').classList.contains('open')) UI.closeRaw();
+  else if (document.getElementById('diffModal').classList.contains('open')) UI.closeDiff();
 });

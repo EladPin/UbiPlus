@@ -24,6 +24,12 @@ No API, no bulk query — UbiView exists but its GUI is poor and we want our own
 `transparent` is the painful one: the control channel is dead so the real RF state cannot be
 determined remotely. UbiPlus surfaces it honestly as UNKNOWN instead of hiding it.
 
+**A unit is per SITE but reports per SECTOR.** One telnet session returns one mode per sector
+on a single `--`-joined line, e.g. a 4-sector site: `inline--inline--bypass--bypass`.
+UbiPlus stores the array (`u.sectors`), renders a chip per sector on the card (S1, S2…), and
+aggregates for the card border / header counts: all sectors agree → that mode; they disagree
+→ `mixed` (blue `#2d9cdb`, `--st-mixed`).
+
 ---
 
 ## How to run it
@@ -70,10 +76,32 @@ Pattern (inherited from Interfex AMOS work — same rules apply):
    ```
 5. Returns `{ok, output}` JSON to the browser, which parses the status.
 
-**UNVERIFIED (needs OSP testing):** exact login prompt sequence of a Ubiqam unit, whether
-credentials are needed per unit, exact `get status` output format. The browser-side parser
-in `statuscheck.js` (`_parseStatus`) currently keyword-matches `inline|bypass|transparent`
-case-insensitively — refine it once a real session transcript is available.
+### Real session format (VERIFIED from a PuTTY photo, Gen4 ver 2.3.31.00, 2025-07-30)
+
+```
+Enter your user name--->idfuser
+2025/07/30 - 14:04:32  --Server ACK
+Enter your pasword--->6ehdZgg4              ← "pasword" typo is in the firmware; echoed in clear
+2025/07/30 - 14:05:19  --Server ACK
+Welcome to Gen4 ver 2.3.31.00 Built on ... FPGA version is 45230
+Used Gen4 is /p2/Gen4Target_Gnueabihf
+Gen4 uptime: 20:41:46 / System uptime / load average lines
+2025/07/30 - 14:05:19 **** 2317 **** --GEN4 TERMINALL -->
+get status
+2025/07/30 - 14:05:53  --Server ACK
+JC status 0xf1101
+inline--inline--bypass--bypass              ← THE status line: one mode per sector, '--' joined
+SFPs: Temperature VCC TX bias TX power RX power ... table with BBUn/RRUn row pairs per sector
+```
+
+Parser (`statuscheck.js` `_parseSectors`) regex-matches that whole-line sector pattern and
+splits on `--`. Aggregate (`_aggregate`): unanimous → that mode, else `mixed`; reachable but
+no sector line → `transparent` (unknown).
+
+**Still UNVERIFIED:** the on/off command syntax; whether `transparent` actually appears as a
+token in the sector line (never captured); whether the plink stdin-feed answers the
+`--->` prompts cleanly on the OSP. Standard fleet credentials: `idfuser` / `6ehdZgg4`
+(pre-filled in the Add Unit modal); port is always **10001**.
 
 ### server.ps1 endpoints
 - `GET  /ubiplus/*` — static files
@@ -86,14 +114,23 @@ case-insensitively — refine it once a real session transcript is available.
 
 ```
 ubiplus/
-  index.html        — single-page app, all modals defined here
+  index.html        — single-page app, all modals + press overlay (loading page)
   css/main.css      — all styles, CSS custom properties, dark theme default
-  fonts/            — self-hosted Manrope + Jersey 10 (copied from Interfex)
+  fonts/            — self-hosted Manrope + Jersey 10 (+ unused Fraunces/Inter/Antonio leftovers)
   js/
     data.js         — UDATA: unit inventory CRUD, persisted in localStorage
-    ui.js           — dashboard grid rendering, header stats, toasts
+    seed.js         — one-time site list import (129 sites from DATA_MEGIC.xlsx, col A;
+                      placeholder random IPs, real ones entered on the OSP. Flag: 'ubiplus_seeded')
+    ui.js           — dashboard grid rendering, header stats, toasts, CSV export
     unitmodal.js    — Add/Edit Unit modal
     statuscheck.js  — single + check-all status flow, telnet output parser, demo mode
+    knight.js       — pixel knight mascot (inline SVG sprite, no assets): off duty he sits
+                      at a coffee table docked in the header (position:fixed, sips + steam);
+                      during checks walks to the card being checked, types on a little
+                      console while the telnet runs, hops when a sweep finishes, then walks
+                      back to his coffee. Auto-scroll follows CHECK ALL. Toggle: TOOLS >
+                      Hide Knight (localStorage 'ubiplus_knight'). The loading page (press
+                      overlay) animates the same coffee-scene sprite frames
 server.ps1          — PowerShell HTTP server + plink telnet proxy
 ```
 
@@ -113,13 +150,27 @@ Persisted in `localStorage` key `ubiplus_units`.
   user:  '',                 // telnet login, optional until verified on OSP
   pass:  '',
   note:  '',                 // free text (e.g. "north mast, sector 2")
-  status:    'unchecked',    // 'unchecked'|'inline'|'bypass'|'transparent'|'offline'
+  status:    'unchecked',    // aggregate: 'unchecked'|'inline'|'mixed'|'bypass'|'transparent'|'offline'
+  sectors:   [],             // per-sector modes from last check, e.g. ['inline','inline','bypass']
   lastCheck: null,           // ISO timestamp of last status check
   lastRaw:   null,           // raw telnet output of last check (shown in detail modal)
+  // one-deep history for the Δ CHANGES feature — every completed check rotates
+  // current → prev (first-ever check sets no baseline). UDATA.changed(u) compares.
+  prevStatus:  undefined,    // aggregate of the check before the latest
+  prevSectors: undefined,    // sector array of the check before the latest
+  prevCheck:   undefined,    // ISO timestamp of that previous check
 }
 ```
 
-Other localStorage keys: `ubiplus_demo` ('1' = demo mode), `ubiplus_theme`.
+Other localStorage keys: `ubiplus_demo` ('1' = demo mode), `ubiplus_theme`,
+`ubiplus_seeded` ('1' = seed.js already imported the Excel site list in this browser).
+
+Seed inventory came from `C:\Users\user\Desktop\data_for_interfex\DATA_MEGIC.xlsx`
+(sheet DATAFINAL, col A NodeId, 804 rows → 308 unique sites). Excluded families per the
+engineer: `MMSL_*` (Takti/1xxx/Pakar), `Halif*`, `Petel*`, `Relay_*`, `MiniSite*`,
+`OutDoor*`, `BB_Test`, `APC_Live`, and `*_SL` slave variants → **129 fixed sites**.
+KD* sites are real and kept. Seeded IPs are random placeholders (172.18.x.y) — the real
+per-unit IPs are only known/enterable on the OSP.
 
 ---
 
@@ -133,15 +184,31 @@ Inherits the Interfex/Obscura design language but **dark-first** (it's a status 
   `transition: all .3s cubic-bezier(0.68,-0.55,0.265,1.55)`, expanding shadow + padding on hover
 - Ghost buttons: transparent bg, 1px border, simple color transition
 - Input lift: 2px translateY on focus with accent border
-- Status colors are CSS vars: `--st-inline`, `--st-bypass`, `--st-transparent`, `--st-offline`
-- Light theme exists via `html.light`, toggled from header (default dark)
+- Status colors are CSS vars: `--st-inline`, `--st-mixed`, `--st-bypass`, `--st-transparent`, `--st-offline`
+- Light theme exists via `html.light`, toggled from the TOOLS menu (default dark)
+- Header uses the Interfex TOOLS dropdown pattern (`.tools-menu`/`.tools-item`): Add Unit /
+  Compare / Export CSV / theme live inside it; only DEMO + CHECK ALL stay standalone.
+  Tools-item hover uses translateX nudge, NOT padding-grow (padding-grow caused hover rattle)
+- **Press overlay** (`.press`, `#press` in index.html): loading page shown on boot — pixel-art
+  knight (inline SVG rects, green accent), Jersey 10 "UBIPLUS", animated progress bar;
+  dismissed 1.4s after window load, then removed from DOM
+- **2026-06: the "Henry" broadside restyle (styles.refero.design cream-paper editorial look)
+  was applied and rolled back same day — user preferred the original dark look. Leftovers
+  kept on purpose: fonts/henry.css + fraunces/inter/antonio woff2 files (unused, offline-safe
+  if ever wanted), the knight press overlay (restyled dark), and 'paper'/'ink' values in
+  localStorage ubiplus_theme migrate back to 'dark' on boot. Don't re-suggest Henry.**
 
 ---
 
 ## Known issues / pending work
-- Real Ubiqam telnet session never captured — login sequence, prompts, `get status` output
-  format and the exact on/off command are all assumptions awaiting OSP testing
+- Login sequence + `get status` output format now verified from a real PuTTY capture (see
+  Telnet section) — but the plink stdin-feed flow itself is still untested against a real unit
 - `POST /ubi/power` (on/off) wired in server but hidden in UI until command syntax confirmed
-- Check-all is sequential (server is single-threaded); ~N×30s worst case for unreachable units
+- Check-all is sequential (server is single-threaded). Healthy unit ≈ a few seconds; dead units
+  fail fast via a 4s TCP probe in `Invoke-UbiTelnet` (added so 80-site mission sweeps don't stall
+  30s per dead site). ~80 sites ≈ 5–10 min unattended vs ~80+ min clicking through UbiView.
+- `UI.exportCSV()` (TOOLS > Export CSV) downloads the fleet table — one row per site, a column
+  per sector, plus Changed (YES) + Changes ("S3 BYPASS -> INLINE") columns vs the previous
+  check — as UTF-8-BOM CSV for Excel mission reports. No xlsx lib (OSP has no internet, no CDN).
 - No Electron package yet — when needed, copy the Interfex recipe (see d:\projects\interfex\CLAUDE.md,
   including the `res.resume()` / `serverReady` fix in main.js)

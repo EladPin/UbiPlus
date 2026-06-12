@@ -36,6 +36,22 @@ function Invoke-UbiTelnet {
     $plink = Find-Plink
     if (-not $plink) { return @{ error = 'plink.exe not found. Place it at C:\tools\plink.exe' } }
 
+    # Fast TCP probe before launching plink: a dead/unreachable unit fails in ~4s
+    # instead of burning the full plink timeout (matters for 80-site sweeps)
+    $tcp = New-Object Net.Sockets.TcpClient
+    try {
+        $async = $tcp.BeginConnect($Ip, $TelnetPort, $null, $null)
+        if (-not $async.AsyncWaitHandle.WaitOne(4000)) {
+            $tcp.Close()
+            return @{ error = "No TCP answer on ${Ip}:${TelnetPort} (4s) - unit unreachable" }
+        }
+        $tcp.EndConnect($async)
+        $tcp.Close()
+    } catch {
+        try { $tcp.Close() } catch {}
+        return @{ error = "TCP connect to ${Ip}:${TelnetPort} failed - unit unreachable" }
+    }
+
     $cmdFile = Join-Path $env:TEMP "ubiplus_cmds_$([guid]::NewGuid().ToString('N')).txt"
     # CRITICAL: Unix \n endings only - remote PTY icrnl turns \r\n into a double newline
     [IO.File]::WriteAllText($cmdFile, (($Lines -join "`n") + "`n"))

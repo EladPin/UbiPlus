@@ -9,8 +9,9 @@
 
   /* status colors — same in both themes */
   --st-inline:      #19b563;
+  --st-mixed:       #2d9cdb;
   --st-bypass:      #8b3df5;
-  --st-transparent: #f5a623;
+  --st-transparent: #7eb8d4;
   --st-offline:     #ff3b5c;
   --st-unchecked:   #6b7685;
 
@@ -19,13 +20,13 @@
 }
 
 html, html.dark {
-  --bg: #0d1117;
-  --bg2: #131a23;
-  --surface: #1a2230;
-  --surface-hi: #222d3e;
-  --line: #2b3648;
-  --txt: #e8edf4;
-  --txt-dim: #8a96a8;
+  --bg: #1a1917;
+  --bg2: #2e2b29;
+  --surface: #242220;
+  --surface-hi: #2e2b29;
+  --line: rgba(255,255,255,0.12);
+  --txt: #f0ede9;
+  --txt-dim: #b0a89e;
   --shadow: rgba(0,0,0,.45);
 }
 
@@ -50,6 +51,58 @@ body {
   transition: background .25s, color .25s;
 }
 
+/* ============ PRESS OVERLAY (loading page) ============ */
+/* always dark regardless of theme — the knight artwork has a dark canvas */
+.press {
+  position: fixed; inset: 0; z-index: 5000;
+  background: #16151b;
+  color: #f0ede9;
+  display: flex; flex-direction: column;
+  align-items: center; justify-content: center;
+  gap: 18px;
+  transition: opacity .55s ease;
+}
+.press.done { opacity: 0; pointer-events: none; }
+
+.press-knight {
+  width: 200px;
+  filter: drop-shadow(0 0 18px rgba(25,181,99,.2));
+  animation: knightIn 1.1s ease both;
+}
+.press-knight svg { width: 100%; height: auto; display: block; shape-rendering: crispEdges; }
+@keyframes knightIn {
+  from { opacity: 0; transform: translateY(12px); }
+  to   { opacity: 1; transform: none; }
+}
+.press-title {
+  font-family: var(--display);
+  font-size: 64px;
+  letter-spacing: 3px;
+  color: var(--accent);
+  text-shadow: 0 0 22px rgba(25,181,99,.4);
+  line-height: 1;
+  margin-top: -14px;
+  text-transform: none;
+}
+.press-sub {
+  font-size: 11px; font-weight: 800;
+  letter-spacing: 4px;
+  color: #8a8694;
+}
+.press-bar {
+  width: 132px; height: 2px;
+  background: var(--accent);
+  border-radius: 2px;
+  transform-origin: left;
+  animation: pressbar 1.5s ease both;
+}
+@keyframes pressbar { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+.press-cap {
+  font-size: 10px; font-weight: 700;
+  letter-spacing: 2px;
+  color: #8a8694;
+}
+
 /* ============ HEADER ============ */
 .hdr {
   display: flex;
@@ -70,6 +123,7 @@ body {
   letter-spacing: 2px;
   color: var(--accent);
   text-shadow: 0 0 18px rgba(25,181,99,.35);
+  text-transform: none;
 }
 .tagline {
   font-size: 9px;
@@ -164,7 +218,7 @@ body {
   border-radius: 50%;
   transition: left .2s, background .2s;
 }
-.demo-toggle input:checked + .demo-track { background: rgba(245,166,35,.4); }
+.demo-toggle input:checked + .demo-track { background: rgba(126,184,212,.35); }
 .demo-toggle input:checked + .demo-track .demo-thumb { left: 18px; background: var(--st-transparent); }
 .demo-label { font-size: 10px; font-weight: 800; letter-spacing: 1.5px; color: var(--txt-dim); }
 
@@ -177,11 +231,74 @@ body {
   gap: 14px;
 }
 
+/* ============ TOOLS DROPDOWN (Interfex pattern) ============ */
+.tools-menu { position: relative; flex-shrink: 0; }
+.tools-toggle { display: inline-flex; align-items: center; gap: 7px; }
+.tools-caret { opacity: .6; transition: transform 200ms; }
+.tools-menu.open .tools-caret { transform: rotate(180deg); }
+.tools-menu.open .tools-toggle { background: var(--surface-hi); border-color: var(--txt-dim); }
+
+.tools-dropdown {
+  display: none;
+  position: absolute; top: calc(100% + 8px); right: 0;
+  background: var(--surface);
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  min-width: 235px;
+  padding: 6px 6px 10px;
+  z-index: 2000;
+  box-shadow: 0 27px 11px rgba(0,0,0,.01), 0 15px 9px rgba(0,0,0,.02),
+              0 7px 7px rgba(0,0,0,.06), 0 2px 4px rgba(0,0,0,.08);
+}
+.tools-menu.open .tools-dropdown { display: block; }
+
+.tools-item {
+  display: flex; align-items: center; gap: 10px;
+  width: 100%; padding: 9px 14px;
+  background: none; border: none; border-radius: 8px;
+  color: var(--txt);
+  font-family: var(--ui); font-size: 13px; font-weight: 600;
+  cursor: pointer; text-align: left;
+  transition: background .3s, box-shadow .3s,
+              transform .3s cubic-bezier(0.68,-0.55,0.265,1.55);
+}
+.tools-item:hover {
+  background: var(--surface-hi);
+  box-shadow: -6px 12px 20px var(--shadow);
+  transform: translateX(-4px);
+}
+.tools-item-hint {
+  margin-left: auto;
+  font-size: 10px; font-weight: 500;
+  color: var(--txt-dim);
+  padding-left: 8px;
+}
+.tools-divider { height: 1px; background: var(--line); margin: 4px 6px; }
+
+/* stop state for CHECK ALL */
+.btn-cta.is-stop { background: var(--st-offline); }
+
+/* SELECT button active state */
+.btn-ghost.active { border-color: var(--accent); color: var(--accent); }
+
+/* bulk-delete button (danger filled, same bounce as btn-cta) */
+.btn-del-sel {
+  font-family: var(--ui);
+  font-size: 12px; font-weight: 800; letter-spacing: .8px;
+  color: #fff;
+  background: var(--st-offline);
+  border: none; border-radius: 6px;
+  padding: 9px 18px;
+  cursor: pointer;
+  box-shadow: 0 10px 20px rgba(0,0,0,0.15);
+  transition: all .3s cubic-bezier(0.68,-0.55,0.265,1.55);
+}
+.btn-del-sel:hover { box-shadow: -20px 50px 50px rgba(0,0,0,0.15); padding: 12px 26px; }
+
 /* ============ UNIT CARD ============ */
 .card {
   background: var(--surface);
   border: 1px solid var(--line);
-  border-left: 4px solid var(--st-col, var(--st-unchecked));
   border-radius: 8px;
   padding: 14px 16px;
   transition: transform .15s, box-shadow .15s, border-color .15s;
@@ -190,6 +307,19 @@ body {
   transform: translateY(-2px);
   box-shadow: 0 8px 24px var(--shadow);
 }
+.card.selectable { cursor: pointer; user-select: none; }
+.card.selected { box-shadow: 0 0 0 2px var(--accent); }
+.card.selected:hover { box-shadow: 0 0 0 2px var(--accent), 0 8px 24px var(--shadow); }
+
+.card-sel-dot {
+  width: 18px; height: 18px; border-radius: 50%;
+  border: 2px solid var(--txt-dim);
+  display: flex; align-items: center; justify-content: center;
+  font-size: 11px; font-weight: 900; color: transparent;
+  flex-shrink: 0;
+  transition: background .15s, border-color .15s, color .15s;
+}
+.card.selected .card-sel-dot { background: var(--accent); border-color: var(--accent); color: #fff; }
 
 .card-top { display: flex; align-items: flex-start; gap: 8px; }
 .card-name { font-size: 16px; font-weight: 800; flex: 1; word-break: break-word; }
@@ -221,6 +351,39 @@ body {
   background: #fff;
 }
 .card[data-st="inline"] .sp-dot { animation: pulse 1.8s ease-in-out infinite; }
+
+/* per-sector status chips (replace the pill once a sector line is parsed) */
+.sector-chips { display: inline-flex; gap: 4px; flex-wrap: wrap; }
+.schip {
+  font-size: 10px; font-weight: 800; letter-spacing: .5px;
+  color: #fff;
+  border-radius: 5px;
+  padding: 4px 8px;
+  cursor: default;
+}
+
+/* change tracking: card flag + diff modal */
+.chg-flag {
+  font-size: 9px; font-weight: 800; letter-spacing: .8px;
+  color: #fff;
+  background: var(--st-transparent);
+  border-radius: 4px;
+  padding: 2px 5px;
+  cursor: default;
+}
+.diff-list { display: flex; flex-direction: column; gap: 8px; }
+.diff-row {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  padding: 9px 12px;
+}
+.diff-name { font-weight: 800; font-size: 13px; flex: 1; min-width: 120px; }
+.diff-when { display: block; font-weight: 600; font-size: 10px; color: var(--txt-dim); margin-top: 2px; }
+.diff-states { display: flex; align-items: center; gap: 8px; }
+.diff-side { display: inline-flex; gap: 4px; }
+.diff-arrow { color: var(--txt-dim); font-weight: 800; }
+.diff-empty { color: var(--txt-dim); font-size: 13px; text-align: center; padding: 16px 0; }
 @keyframes pulse {
   0%, 100% { opacity: 1; transform: scale(1); }
   50% { opacity: .4; transform: scale(.7); }
@@ -389,6 +552,24 @@ body {
   word-break: break-word;
   max-height: 50vh;
   overflow-y: auto;
+}
+
+/* ============ KNIGHT MASCOT ============ */
+#ubiKnight {
+  position: absolute; left: 0; top: 0;
+  width: 36px; height: 42px; /* width is per-frame (JS); coffee scene is wider */
+  z-index: 90; /* above cards, below modal overlays (100) */
+  pointer-events: none;
+  will-change: transform;
+}
+/* parked at the header coffee table — fixed, rides with the sticky header */
+#ubiKnight.docked { position: fixed; }
+#ubiKnight .kbody { width: 100%; height: 100%; }
+#ubiKnight svg { width: 100%; height: 100%; display: block; shape-rendering: crispEdges; }
+#ubiKnight.hop .kbody { animation: kHop .38s cubic-bezier(.3,1.6,.5,1); }
+@keyframes kHop {
+  0%, 100% { transform: translateY(0); }
+  45% { transform: translateY(-12px); }
 }
 
 /* ============ TOASTS ============ */

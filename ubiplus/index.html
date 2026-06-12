@@ -9,9 +9,18 @@
 </head>
 <body>
 
+<!-- ============ PRESS OVERLAY (loading page) ============ -->
+<div class="press" id="press" aria-hidden="true">
+  <div class="press-knight" id="pressKnight"></div>
+  <div class="press-title">UbiPlus</div>
+  <div class="press-sub">UBIQAM FLEET MONITOR</div>
+  <div class="press-bar"></div>
+  <div class="press-cap">LOADING THE FLEET</div>
+</div>
+
 <header class="hdr">
   <div class="hdr-brand">
-    <div class="logo">UBIPLUS</div>
+    <div class="logo">UbiPlus</div>
     <div class="tagline">UBIQAM FLEET MONITOR</div>
   </div>
 
@@ -25,8 +34,43 @@
       <span class="demo-track"><span class="demo-thumb"></span></span>
       <span class="demo-label">DEMO</span>
     </label>
-    <button class="btn-ghost" id="btnTheme" onclick="THEMEX.toggle()">LIGHT</button>
-    <button class="btn-ghost" onclick="UNITMODAL.open()">+ ADD UNIT</button>
+    <div class="tools-menu" id="toolsMenu">
+      <button class="btn-ghost tools-toggle" onclick="TOOLSMENU.toggle(event)">
+        <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+        TOOLS
+        <svg class="tools-caret" viewBox="0 0 10 6" width="10" height="6" fill="currentColor"><path d="M0 0l5 6 5-6z"/></svg>
+      </button>
+      <div class="tools-dropdown" id="toolsDropdown">
+        <button class="tools-item" onclick="TOOLSMENU.close();UNITMODAL.open()">
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+          Add Unit
+          <span class="tools-item-hint">New site entry</span>
+        </button>
+        <button class="tools-item" onclick="TOOLSMENU.close();UI.openDiff()">
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 1 21 5 17 9"/><path d="M3 11V9a4 4 0 0 1 4-4h14"/><polyline points="7 23 3 19 7 15"/><path d="M21 13v2a4 4 0 0 1-4 4H3"/></svg>
+          Compare
+          <span class="tools-item-hint">Since previous check</span>
+        </button>
+        <button class="tools-item" onclick="TOOLSMENU.close();UI.exportCSV()">
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          Export CSV
+          <span class="tools-item-hint">Excel mission report</span>
+        </button>
+        <div class="tools-divider"></div>
+        <button class="tools-item" onclick="TOOLSMENU.close();THEMEX.toggle()">
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
+          <span id="btnTheme">Light Mode</span>
+          <span class="tools-item-hint">Toggle theme</span>
+        </button>
+        <button class="tools-item" onclick="TOOLSMENU.close();KNIGHT.toggle()">
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+          <span id="knightLbl">Hide Knight</span>
+          <span class="tools-item-hint">Pixel mascot</span>
+        </button>
+      </div>
+    </div>
+    <button class="btn-ghost btn-select" id="btnSelect" onclick="UI.toggleSelectMode()">SELECT</button>
+    <button class="btn-del-sel" id="btnDeleteSel" onclick="UI.deleteSelected()" style="display:none">DELETE 0</button>
     <button class="btn-cta" id="btnCheckAll" onclick="CHECK.all()">▶ CHECK ALL</button>
   </div>
 </header>
@@ -57,11 +101,11 @@
       <div class="frow-2">
         <div class="frow">
           <label>IP ADDRESS</label>
-          <input type="text" id="umIp" placeholder="10.20.30.40" autocomplete="off">
+          <input type="text" id="umIp" placeholder="172.18.0.0" autocomplete="off">
         </div>
         <div class="frow frow-port">
           <label>PORT</label>
-          <input type="number" id="umPort" value="23" min="1" max="65535">
+          <input type="number" id="umPort" value="10001" min="1" max="65535">
         </div>
       </div>
       <div class="frow-2">
@@ -107,13 +151,44 @@
   </div>
 </div>
 
+<!-- ============ CHANGES (DIFF) MODAL ============ -->
+<div class="modal-overlay" id="diffModal">
+  <div class="modal modal-wide">
+    <div class="modal-head">
+      <div class="modal-title">CHANGES SINCE PREVIOUS CHECK</div>
+      <button class="modal-x" onclick="UI.closeDiff()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="diff-list" id="diffList"></div>
+    </div>
+    <div class="modal-foot">
+      <div class="modal-foot-spacer"></div>
+      <button class="btn-ghost" onclick="UI.closeDiff()">CLOSE</button>
+    </div>
+  </div>
+</div>
+
 <div class="toast-wrap" id="toastWrap"></div>
 
 <script src="js/data.js"></script>
+<script src="js/seed.js"></script>
 <script src="js/statuscheck.js"></script>
 <script src="js/unitmodal.js"></script>
 <script src="js/ui.js"></script>
+<script src="js/knight.js"></script>
 <script>
+// tools dropdown (pattern copied from Interfex)
+const TOOLSMENU = {
+  toggle(e) {
+    e.stopPropagation();
+    document.getElementById('toolsMenu').classList.toggle('open');
+  },
+  close() {
+    document.getElementById('toolsMenu').classList.remove('open');
+  }
+};
+document.addEventListener('click', () => TOOLSMENU.close());
+
 // theme toggle (dark is default)
 const THEMEX = {
   toggle() {
@@ -122,16 +197,41 @@ const THEMEX = {
   },
   _apply(t) {
     document.documentElement.classList.toggle('light', t === 'light');
-    document.getElementById('btnTheme').textContent = t === 'light' ? 'DARK' : 'LIGHT';
+    document.getElementById('btnTheme').textContent = t === 'light' ? 'Dark Mode' : 'Light Mode';
     localStorage.setItem('ubiplus_theme', t);
   }
 };
-THEMEX._apply(localStorage.getItem('ubiplus_theme') || 'dark');
+// values written by the short-lived Henry restyle ('paper'/'ink') land on dark
+let _theme = localStorage.getItem('ubiplus_theme');
+if (_theme !== 'light') _theme = 'dark';
+THEMEX._apply(_theme);
+
+// press overlay: brief loading cover, then let the dashboard through.
+// the knight sits with his coffee, drawn from the same sprite data
+const pressKnight = document.getElementById('pressKnight');
+let pkT = 0;
+const pkFrame = () => {
+  const ph = ++pkT % 16;
+  const f = KNIGHT.F[ph >= 13 ? 'sip' : (ph % 2 ? 'sitA' : 'sitB')];
+  pressKnight.innerHTML = `<svg viewBox="0 0 ${f.w} ${KNIGHT.H}">${KNIGHT._rects(f.r)}</svg>`;
+};
+pkFrame();
+const pkIv = setInterval(pkFrame, 240);
+window.addEventListener('load', () => {
+  setTimeout(() => {
+    const p = document.getElementById('press');
+    if (!p) return;
+    p.classList.add('done');
+    setTimeout(() => { clearInterval(pkIv); p.remove(); }, 700);
+  }, 1400);
+});
 
 // boot
 UDATA.load();
+SEED.run();        // one-time Excel site import (no-op after first run)
 CHECK.initDemo();
 UI.renderAll();
+KNIGHT.init();
 </script>
 </body>
 </html>
