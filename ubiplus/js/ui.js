@@ -2,6 +2,8 @@
 const UI = {
   selectMode: false,
   selected: new Set(),
+  _filterSt: '',
+  _filterQ: '',
 
   STATUS_META: {
     inline:      { label: 'INLINE',    color: 'var(--st-inline)' },
@@ -28,6 +30,13 @@ const UI = {
         <span class="lbl">${m.label}</span>
       </div>`;
     }).join('');
+    // update filter pill counts
+    document.querySelectorAll('#filterPills .fpill').forEach(b => {
+      const st = b.dataset.st;
+      const n = st ? (c[st] || 0) : UDATA.units.length;
+      const lbl = st ? (this.STATUS_META[st]?.label || st.toUpperCase()) : 'ALL';
+      b.textContent = n ? `${lbl} · ${n}` : lbl;
+    });
   },
 
   renderGrid() {
@@ -35,14 +44,33 @@ const UI = {
     const hint = document.getElementById('emptyHint');
     const has = UDATA.units.length > 0;
     hint.style.display = has ? 'none' : '';
-    grid.innerHTML = has ? UDATA.units.map(u => this._cardHTML(u)).join('') : '';
+    if (!has) { grid.innerHTML = ''; return; }
+    let units = UDATA.units;
+    if (this._filterSt) units = units.filter(u => u.status === this._filterSt);
+    if (this._filterQ)  units = units.filter(u => (u.name || '').toLowerCase().includes(this._filterQ));
+    grid.innerHTML = units.length
+      ? units.map(u => this._cardHTML(u)).join('')
+      : '<div class="filter-empty">No units match the current filter.</div>';
   },
 
   renderCard(id) {
     const u = UDATA.get(id);
+    if (this._filterSt || this._filterQ) { this.renderGrid(); return; }
     const el = document.querySelector(`.card[data-id="${id}"]`);
     if (u && el) el.outerHTML = this._cardHTML(u);
     else this.renderGrid();
+  },
+
+  setFilter(st) {
+    this._filterSt = st;
+    document.querySelectorAll('#filterPills .fpill').forEach(b =>
+      b.classList.toggle('active', b.dataset.st === st));
+    this.renderGrid();
+  },
+
+  setSearch(q) {
+    this._filterQ = q.trim().toLowerCase();
+    this.renderGrid();
   },
 
   _cardHTML(u) {
@@ -79,6 +107,7 @@ const UI = {
           ${checking ? '<span class="spin"></span>CHECKING…' : '▶ CHECK'}
         </button>
         <button class="btn-raw" onclick="${sp}UI.openRaw('${u.id}')" ${u.lastRaw ? '' : 'disabled'}>OUTPUT</button>
+        <button class="btn-set" onclick="${sp}POWER.open('${u.id}')" title="Set sector mode via telnet">SET</button>
       </div>
     </div>`;
   },

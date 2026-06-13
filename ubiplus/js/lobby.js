@@ -53,6 +53,9 @@ const LOBBY = {
       bowl: '#446aa7', kibble: '#b85c35',
       art: '#1a2238', artHi: '#54775c',
       books: ['#7f6c1f', '#9d4d77', '#446aa7', '#547358', '#c0394b', '#b85c35'],
+      partnerFur: '#8a8694', partnerDk: '#5a5666', partnerLight: '#c8c4cc', partnerCollar: '#ff3b5c',
+      kittenFur: '#f67748', kittenDk: '#c2552e', kittenLight: '#fdf6ec',
+      mugBody: '#6b5c47', mugFill: '#3d2010', steam: '#4a4540',
     } : {
       wall: '#f4e6d2', base: '#e7d4ba',
       floor: '#dcb98c', seam: '#cba36f',
@@ -66,6 +69,9 @@ const LOBBY = {
       bowl: '#446aa7', kibble: '#b85c35',
       art: '#bfdcf5', artHi: '#547358',
       books: ['#7f6c1f', '#9d4d77', '#446aa7', '#547358', '#c0394b', '#b85c35'],
+      partnerFur: '#8a8694', partnerDk: '#5a5666', partnerLight: '#d4d0d8', partnerCollar: '#c0394b',
+      kittenFur: '#f67748', kittenDk: '#c2552e', kittenLight: '#fdf6ec',
+      mugBody: '#f5eedc', mugFill: '#6b3e26', steam: '#ddd9d4',
     };
   },
 
@@ -145,6 +151,31 @@ const LOBBY = {
       out.push(r(x + 3, 13, 3, 2, P.cushion));                          // throw pillow
       this.stations.sofa = { xr: cells - (x + 9), row: 15, pose: 'sit', dir: 1 };
       xr += 17 + 2;
+    }
+    // coffee table with two mugs (between sofa and lamp); cat family gathers here
+    let ctX = -1;
+    if (fits(9)) {
+      const x = cells - xr - 9;
+      ctX = x;
+      // table surface
+      out.push(r(x, 15, 9, 1, P.woodDk));         // lip
+      out.push(r(x, 16, 9, 1, P.wood));            // top
+      // legs
+      out.push(r(x + 1, 17, 1, 4, P.woodDk));
+      out.push(r(x + 7, 17, 1, 4, P.woodDk));
+      // left mug (steaming)
+      out.push(r(x + 1, 11, 2, 4, P.mugBody));    // body
+      out.push(r(x + 3, 12, 1, 2, P.mugBody));    // handle
+      out.push(r(x + 1, 11, 2, 1, P.mugFill));    // coffee surface
+      out.push(r(x + 2, 10, 1, 1, P.steam));      // steam
+      out.push(r(x + 1, 9, 1, 1, P.steam));       // steam wisp
+      // right mug
+      out.push(r(x + 5, 12, 2, 3, P.mugBody));    // body (shorter — already drunk some)
+      out.push(r(x + 7, 13, 1, 1, P.mugBody));    // handle
+      out.push(r(x + 5, 12, 2, 1, P.mugFill));    // coffee surface
+      out.push(r(x + 6, 11, 1, 1, P.steam));      // faint steam
+      this.stations.coffeeTable = { xr: cells - (x + 5), row: 16, pose: 'sit', dir: -1 };
+      xr += 9 + 2;
     }
     // floor lamp
     if (fits(6)) {
