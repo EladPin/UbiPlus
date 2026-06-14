@@ -4,7 +4,7 @@ param([switch]$NoLaunch)
 
 $ErrorActionPreference = 'Stop'
 $root = $PSScriptRoot
-$port = 8090
+$port = 8093
 $prefix = "http://localhost:$port/"
 
 # ---------- plink discovery ----------
@@ -125,16 +125,19 @@ function Send-Json {
     $Response.OutputStream.Close()
 }
 
-$mime = @{
-    '.html'='text/html'; '.css'='text/css'; '.js'='application/javascript'
-    '.json'='application/json'; '.png'='image/png'; '.svg'='image/svg+xml'
-    '.woff2'='font/woff2'; '.ico'='image/x-icon'
-}
-
 # ---------- HTTP listener ----------
 $listener = New-Object Net.HttpListener
 $listener.Prefixes.Add($prefix)
-$listener.Start()
+try {
+    $listener.Start()
+} catch {
+    # HttpListener is disposed after a failed Start() — recreate and retry once.
+    Write-Host "Port $port busy, retrying in 2s..." -ForegroundColor Yellow
+    Start-Sleep -Seconds 2
+    $listener = New-Object Net.HttpListener
+    $listener.Prefixes.Add($prefix)
+    $listener.Start()
+}
 Write-Host "UbiPlus server running at ${prefix}ubiplus/" -ForegroundColor Green
 $plinkPath = Find-Plink
 if ($plinkPath) { Write-Host "plink: $plinkPath" -ForegroundColor DarkGray }
@@ -146,55 +149,65 @@ while ($listener.IsListening) {
     $ctx = $listener.GetContext()
     $req = $ctx.Request
     $res = $ctx.Response
-    $path = $req.Url.AbsolutePath
+    $path = [Uri]::UnescapeDataString($req.Url.AbsolutePath).TrimStart('/')
 
     try {
-        if ($req.HttpMethod -eq 'POST' -and ($path -eq '/ubi/status' -or $path -eq '/ubi/power')) {
+        if ($req.HttpMethod -eq 'GET' -and $path -eq 'ubi/ping') {
+            Send-Json $res @{ ok = $true; root = $root; plink = (Find-Plink) }
+        }
+        elseif ($req.HttpMethod -eq 'POST' -and ($path -eq 'ubi/status' -or $path -eq 'ubi/power')) {
             $body = Read-JsonBody $req
-            if (-not $body -or -not $body.ip) { Send-Json $res @{ error = 'Missing ip' } 400; continue }
+            if (-not $body -or -not $body.ip) { Send-Json $res @{ error = 'Missing ip' } 400 }
+            else {
+                $tport = 23
+                if ($body.port) { $tport = [int]$body.port }
 
-            $tport = 23
-            if ($body.port) { $tport = [int]$body.port }
-
-            # Build the interactive line sequence: optional credentials, then the command(s)
-            $lines = @()
-            if ($body.user) { $lines += [string]$body.user }
-            if ($body.pass) { $lines += [string]$body.pass }
-            if ($path -eq '/ubi/status') {
-                $cmd = 'get status'
-                if ($body.cmd) { $cmd = [string]$body.cmd }
-                $lines += $cmd
-            } else {
-                if (-not $body.cmd) { Send-Json $res @{ error = 'Missing cmd for power action' } 400; continue }
-                $lines += [string]$body.cmd
+                $lines = @()
+                if ($body.user) { $lines += [string]$body.user }
+                if ($body.pass) { $lines += [string]$body.pass }
+                if ($path -eq 'ubi/status') {
+                    $cmd = 'get status'
+                    if ($body.cmd) { $cmd = [string]$body.cmd }
+                    $lines += $cmd
+                } else {
+                    if (-not $body.cmd) { Send-Json $res @{ error = 'Missing cmd for power action' } 400 }
+                    else { $lines += [string]$body.cmd }
+                }
+                if ($lines.Count -gt 0) {
+                    $lines += 'exit'
+                    Write-Host "[$([DateTime]::Now.ToString('HH:mm:ss'))] /$path -> $($body.ip):$tport" -ForegroundColor Cyan
+                    $result = Invoke-UbiTelnet -Ip ([string]$body.ip) -TelnetPort $tport -Lines $lines
+                    Send-Json $res $result
+                }
             }
-            $lines += 'exit'
-
-            Write-Host "[$([DateTime]::Now.ToString('HH:mm:ss'))] $path -> $($body.ip):$tport" -ForegroundColor Cyan
-            $result = Invoke-UbiTelnet -Ip ([string]$body.ip) -TelnetPort $tport -Lines $lines
-            Send-Json $res $result
-            continue
         }
+        else {
+            # ---------- static files (Interfex pattern) ----------
+            $file = Join-Path $root ($path.Replace('/', [IO.Path]::DirectorySeparatorChar))
+            if ([IO.Directory]::Exists($file)) { $file = Join-Path $file 'index.html' }
 
-        # ---------- static files ----------
-        if ($path -eq '/') { $path = '/ubiplus/' }
-        if ($path.EndsWith('/')) { $path += 'index.html' }
-        $file = Join-Path $root ($path -replace '/', '\').TrimStart('\')
-        if ((Test-Path $file) -and (Resolve-Path $file).Path.StartsWith($root)) {
-            $ext = [IO.Path]::GetExtension($file).ToLower()
-            $ct = $mime[$ext]; if (-not $ct) { $ct = 'application/octet-stream' }
-            $buf = [IO.File]::ReadAllBytes($file)
-            $res.ContentType = $ct
-            $res.ContentLength64 = $buf.Length
-            $res.OutputStream.Write($buf, 0, $buf.Length)
-            $res.OutputStream.Close()
-        } else {
-            $res.StatusCode = 404
-            $buf = [Text.Encoding]::UTF8.GetBytes('404')
-            $res.OutputStream.Write($buf, 0, $buf.Length)
-            $res.OutputStream.Close()
+            if ([IO.File]::Exists($file)) {
+                $ct = switch ([IO.Path]::GetExtension($file).ToLower()) {
+                    '.html'  { 'text/html; charset=utf-8' }
+                    '.js'    { 'application/javascript' }
+                    '.css'   { 'text/css' }
+                    '.json'  { 'application/json' }
+                    '.png'   { 'image/png' }
+                    '.svg'   { 'image/svg+xml' }
+                    '.woff2' { 'font/woff2' }
+                    '.ico'   { 'image/x-icon' }
+                    default  { 'application/octet-stream' }
+                }
+                $res.StatusCode = 200
+                $res.ContentType = $ct
+                $res.ContentLength64 = (Get-Item $file).Length
+                $fs = [IO.File]::OpenRead($file)
+                $fs.CopyTo($res.OutputStream)
+                $fs.Close()
+            } else {
+                $res.StatusCode = 404
+            }
         }
-    } catch {
-        try { Send-Json $res @{ error = $_.Exception.Message } 500 } catch {}
-    }
+    } catch { $res.StatusCode = 500 }
+    try { $res.OutputStream.Close() } catch {}
 }
