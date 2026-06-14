@@ -141,7 +141,7 @@ try {
 Write-Host "UbiPlus server running at ${prefix}ubiplus/" -ForegroundColor Green
 $plinkPath = Find-Plink
 if ($plinkPath) { Write-Host "plink: $plinkPath" -ForegroundColor DarkGray }
-else { Write-Host "plink.exe NOT FOUND - telnet features disabled (demo mode still works)" -ForegroundColor Yellow }
+else { Write-Host "plink.exe NOT FOUND - telnet features disabled" -ForegroundColor Yellow }
 
 if (-not $NoLaunch) { Start-Process "${prefix}ubiplus/" }
 

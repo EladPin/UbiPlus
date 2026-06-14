@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>UbiPlus — Ubiqam Fleet Monitor</title>
 <link rel="stylesheet" href="fonts/fonts.css">
+<link rel="stylesheet" href="fonts/henry.css"><!-- Fraunces: heading serif (Garnett substitute) -->
 <link rel="stylesheet" href="css/main.css">
 </head>
 <body>
@@ -29,11 +30,6 @@
   </div>
 
   <div class="hdr-actions">
-    <label class="demo-toggle" title="Demo mode — fabricates telnet output for UI work off the OSP">
-      <input type="checkbox" id="chkDemo" onchange="CHECK.setDemo(this.checked)">
-      <span class="demo-track"><span class="demo-thumb"></span></span>
-      <span class="demo-label">DEMO</span>
-    </label>
     <div class="tools-menu" id="toolsMenu">
       <button class="btn-ghost tools-toggle" onclick="TOOLSMENU.toggle(event)">
         <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
@@ -56,16 +52,21 @@
           Export CSV
           <span class="tools-item-hint">Excel mission report</span>
         </button>
+        <button class="tools-item" onclick="TOOLSMENU.close();HISTMODAL.open()">
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/></svg>
+          History
+          <span class="tools-item-hint">Fleet change log</span>
+        </button>
         <div class="tools-divider"></div>
         <button class="tools-item" onclick="TOOLSMENU.close();THEMEX.toggle()">
           <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
           <span id="btnTheme">Light Mode</span>
           <span class="tools-item-hint">Toggle theme</span>
         </button>
-        <button class="tools-item" onclick="TOOLSMENU.close();KNIGHT.toggle()">
-          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
-          <span id="knightLbl">Hide Knight</span>
-          <span class="tools-item-hint">Pixel mascot</span>
+        <button class="tools-item" onclick="TOOLSMENU.close();CAT.toggle()">
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 4l3 3.5h8L19 4v9a7 7 0 0 1-14 0z"/><line x1="9.5" y1="11" x2="9.5" y2="11.2"/><line x1="14.5" y1="11" x2="14.5" y2="11.2"/></svg>
+          <span id="catLbl">Hide Cat</span>
+          <span class="tools-item-hint">Lobby mascot</span>
         </button>
       </div>
     </div>
@@ -74,6 +75,36 @@
     <button class="btn-cta" id="btnCheckAll" onclick="CHECK.all()">▶ CHECK ALL</button>
   </div>
 </header>
+
+<div class="filter-bar" id="filterBar">
+  <div class="filter-pills" id="filterPills">
+    <button class="fpill active" data-st="" onclick="UI.setFilter('')">ALL</button>
+    <button class="fpill" data-st="inline" onclick="UI.setFilter('inline')">INLINE</button>
+    <button class="fpill" data-st="bypass" onclick="UI.setFilter('bypass')">BYPASS</button>
+    <button class="fpill" data-st="mixed" onclick="UI.setFilter('mixed')">MIXED</button>
+    <button class="fpill" data-st="transparent" onclick="UI.setFilter('transparent')">UNKNOWN</button>
+    <button class="fpill" data-st="offline" onclick="UI.setFilter('offline')">OFFLINE</button>
+    <button class="fpill" data-st="unchecked" onclick="UI.setFilter('unchecked')">UNCHECKED</button>
+  </div>
+  <input class="filter-search" id="filterSearch" type="search" placeholder="Search sites…" autocomplete="off" oninput="UI.setSearch(this.value)">
+  <div class="poll-controls">
+    <select id="pollIntervalSel" class="poll-sel" onchange="AUTOPOLL.setInterval(this.value)">
+      <option value="0">Auto: Off</option>
+      <option value="1800">Auto: 30m</option>
+      <option value="3600">Auto: 1h</option>
+      <option value="10800">Auto: 3h</option>
+      <option value="21600">Auto: 6h</option>
+      <option value="43200">Auto: 12h</option>
+      <option value="86400">Auto: 24h</option>
+    </select>
+    <span class="poll-countdown" id="pollCountdown"></span>
+  </div>
+  <button class="btn-import-ips" title="Import IPs from CSV (name + ip columns)" onclick="IPIMPORT.open()">
+    <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+    IPs
+  </button>
+  <input type="file" id="ipImportFile" accept=".csv,.txt,.xlsx,.xls" style="display:none" onchange="IPIMPORT.onFile(this)">
+</div>
 
 <main class="board">
   <div class="empty-hint" id="emptyHint">
@@ -168,14 +199,86 @@
   </div>
 </div>
 
+<!-- ============ FLEET HISTORY MODAL ============ -->
+<div class="modal-overlay" id="histModal">
+  <div class="modal modal-wide">
+    <div class="modal-head">
+      <div class="modal-title">FLEET HISTORY</div>
+      <button class="modal-x" onclick="HISTMODAL.close()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="hm-toprow">
+        <div class="hm-tabs">
+          <button class="hm-tab active" data-r="1check" onclick="HISTMODAL.setRange('1check')">Since last check</button>
+          <button class="hm-tab" data-r="24h" onclick="HISTMODAL.setRange('24h')">Last 24h</button>
+          <button class="hm-tab" data-r="7d" onclick="HISTMODAL.setRange('7d')">Last 7 days</button>
+          <button class="hm-tab" data-r="14d" onclick="HISTMODAL.setRange('14d')">Last 14 days</button>
+          <button class="hm-tab" data-r="search" onclick="HISTMODAL.setRange('search')">Search</button>
+        </div>
+        <label class="hm-retention">
+          Keep:
+          <select id="pollRetentionSel" class="hm-ret-sel" onchange="AUTOPOLL.setRetention(this.value)">
+            <option value="1">1 day</option>
+            <option value="3">3 days</option>
+            <option value="7">7 days</option>
+            <option value="14">14 days</option>
+            <option value="30">30 days</option>
+          </select>
+        </label>
+      </div>
+      <div id="hmBody"></div>
+    </div>
+    <div class="modal-foot">
+      <span class="hm-snap-count" id="hmSnapCount"></span>
+      <div class="modal-foot-spacer"></div>
+      <button class="btn-ghost" onclick="HISTMODAL.close()">CLOSE</button>
+      <button class="btn-cta" id="hmExport" onclick="HISTMODAL.exportCSV()" disabled>EXPORT CSV</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ SET MODE (POWER CONTROL) MODAL ============ -->
+<div class="modal-overlay" id="powerModal">
+  <div class="modal">
+    <div class="modal-head">
+      <div class="modal-title" id="pmTitle">SET MODE</div>
+      <button class="modal-x" onclick="POWER.close()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="pm-group-label">SELECT SECTOR</div>
+      <div class="pm-sectors" id="pmSectors"></div>
+      <div class="pm-group-label">TARGET MODE</div>
+      <div class="pm-modes">
+        <button class="pm-mode st-inline" data-mode="inline" onclick="POWER.selectMode('inline')">
+          <span class="pm-dot"></span>INLINE
+        </button>
+        <button class="pm-mode st-bypass" data-mode="bypass" onclick="POWER.selectMode('bypass')">
+          <span class="pm-dot"></span>BYPASS
+        </button>
+      </div>
+      <pre class="pm-preview" id="pmPreview"></pre>
+      <div class="pm-hint">Command sent via telnet. A status check runs automatically after to confirm the change.</div>
+    </div>
+    <div class="modal-foot">
+      <div class="modal-foot-spacer"></div>
+      <button class="btn-ghost" onclick="POWER.close()">CANCEL</button>
+      <button class="btn-cta" id="pmApply" onclick="POWER.execute()" disabled>APPLY</button>
+    </div>
+  </div>
+</div>
+
 <div class="toast-wrap" id="toastWrap"></div>
 
 <script src="js/data.js"></script>
 <script src="js/seed.js"></script>
+<script src="js/history.js"></script>
 <script src="js/statuscheck.js"></script>
+<script src="js/powercontrol.js"></script>
 <script src="js/unitmodal.js"></script>
 <script src="js/ui.js"></script>
-<script src="js/knight.js"></script>
+<script src="js/autopoll.js"></script>
+<script src="js/ipimport.js"></script>
+<script src="js/lobby.js"></script>
 <script>
 // tools dropdown (pattern copied from Interfex)
 const TOOLSMENU = {
@@ -189,31 +292,32 @@ const TOOLSMENU = {
 };
 document.addEventListener('click', () => TOOLSMENU.close());
 
-// theme toggle (dark is default)
+// theme toggle (parchment is default; original dark wall behind the toggle)
 const THEMEX = {
   toggle() {
-    const light = !document.documentElement.classList.contains('light');
-    this._apply(light ? 'light' : 'dark');
+    const dark = !document.documentElement.classList.contains('dark');
+    this._apply(dark ? 'dark' : 'light');
   },
   _apply(t) {
-    document.documentElement.classList.toggle('light', t === 'light');
-    document.getElementById('btnTheme').textContent = t === 'light' ? 'Dark Mode' : 'Light Mode';
-    localStorage.setItem('ubiplus_theme', t);
+    document.documentElement.classList.toggle('dark', t === 'dark');
+    document.getElementById('btnTheme').textContent = t === 'dark' ? 'Light Mode' : 'Dark Mode';
+    localStorage.setItem('ubiplus_theme2', t);
   }
 };
-// values written by the short-lived Henry restyle ('paper'/'ink') land on dark
-let _theme = localStorage.getItem('ubiplus_theme');
-if (_theme !== 'light') _theme = 'dark';
+// fresh key so every browser boots into the Slite parchment look once;
+// the old ubiplus_theme key (dark/light/paper/ink history) is retired
+let _theme = localStorage.getItem('ubiplus_theme2');
+if (_theme !== 'dark') _theme = 'light';
 THEMEX._apply(_theme);
 
 // press overlay: brief loading cover, then let the dashboard through.
-// the knight sits with his coffee, drawn from the same sprite data
+// the cat sits and grooms, drawn from the same sprite data as the lobby
 const pressKnight = document.getElementById('pressKnight');
 let pkT = 0;
 const pkFrame = () => {
   const ph = ++pkT % 16;
-  const f = KNIGHT.F[ph >= 13 ? 'sip' : (ph % 2 ? 'sitA' : 'sitB')];
-  pressKnight.innerHTML = `<svg viewBox="0 0 ${f.w} ${KNIGHT.H}">${KNIGHT._rects(f.r)}</svg>`;
+  const f = CAT.F[ph >= 12 ? 'sip' : (ph % 4 < 2 ? 'sitA' : 'sitB')];
+  pressKnight.innerHTML = `<svg viewBox="0 0 ${f.w} ${CAT.H}">${CAT._rects(f.r)}</svg>`;
 };
 pkFrame();
 const pkIv = setInterval(pkFrame, 240);
@@ -229,9 +333,9 @@ window.addEventListener('load', () => {
 // boot
 UDATA.load();
 SEED.run();        // one-time Excel site import (no-op after first run)
-CHECK.initDemo();
 UI.renderAll();
-KNIGHT.init();
+AUTOPOLL.init();   // loads history, restores poll interval + countdown
+CAT.init();        // builds the header lobby too
 </script>
 </body>
 </html>

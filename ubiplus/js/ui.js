@@ -2,6 +2,8 @@
 const UI = {
   selectMode: false,
   selected: new Set(),
+  _filterSt: '',
+  _filterQ: '',
 
   STATUS_META: {
     inline:      { label: 'INLINE',    color: 'var(--st-inline)' },
@@ -28,6 +30,13 @@ const UI = {
         <span class="lbl">${m.label}</span>
       </div>`;
     }).join('');
+    // update filter pill counts
+    document.querySelectorAll('#filterPills .fpill').forEach(b => {
+      const st = b.dataset.st;
+      const n = st ? (c[st] || 0) : UDATA.units.length;
+      const lbl = st ? (this.STATUS_META[st]?.label || st.toUpperCase()) : 'ALL';
+      b.textContent = n ? `${lbl} · ${n}` : lbl;
+    });
   },
 
   renderGrid() {
@@ -35,14 +44,33 @@ const UI = {
     const hint = document.getElementById('emptyHint');
     const has = UDATA.units.length > 0;
     hint.style.display = has ? 'none' : '';
-    grid.innerHTML = has ? UDATA.units.map(u => this._cardHTML(u)).join('') : '';
+    if (!has) { grid.innerHTML = ''; return; }
+    let units = UDATA.units;
+    if (this._filterSt) units = units.filter(u => u.status === this._filterSt);
+    if (this._filterQ)  units = units.filter(u => (u.name || '').toLowerCase().includes(this._filterQ));
+    grid.innerHTML = units.length
+      ? units.map(u => this._cardHTML(u)).join('')
+      : '<div class="filter-empty">No units match the current filter.</div>';
   },
 
   renderCard(id) {
     const u = UDATA.get(id);
+    if (this._filterSt || this._filterQ) { this.renderGrid(); return; }
     const el = document.querySelector(`.card[data-id="${id}"]`);
     if (u && el) el.outerHTML = this._cardHTML(u);
     else this.renderGrid();
+  },
+
+  setFilter(st) {
+    this._filterSt = st;
+    document.querySelectorAll('#filterPills .fpill').forEach(b =>
+      b.classList.toggle('active', b.dataset.st === st));
+    this.renderGrid();
+  },
+
+  setSearch(q) {
+    this._filterQ = q.trim().toLowerCase();
+    this.renderGrid();
   },
 
   _cardHTML(u) {
@@ -52,15 +80,16 @@ const UI = {
     const sel = this.selectMode && this.selected.has(u.id);
     const sp = this.selectMode ? 'event.stopPropagation();' : '';
 
+    const stCls = s => `st-${this.STATUS_META[s] ? s : 'unchecked'}`; // badge color pair lives in CSS
     const sectors = u.sectors || [];
     const statusHTML = sectors.length
       ? `<span class="sector-chips">${sectors.map((s, i) => {
           const sm = this.STATUS_META[s] || this.STATUS_META.unchecked;
-          return `<span class="schip" style="background:${sm.color}" title="Sector ${i + 1}: ${sm.label}">S${i + 1}</span>`;
+          return `<span class="schip ${stCls(s)}" title="Sector ${i + 1}: ${sm.label}">S${i + 1}</span>`;
         }).join('')}</span>`
-      : `<span class="status-pill"><span class="sp-dot"></span>${m.label}</span>`;
+      : `<span class="status-pill ${stCls(u.status)}"><span class="sp-dot"></span>${m.label}</span>`;
 
-    return `<div class="card${this.selectMode ? ' selectable' : ''}${sel ? ' selected' : ''}" data-id="${u.id}" data-st="${u.status}" style="--st-col:${m.color}"${this.selectMode ? ` onclick="UI.toggleSelect('${u.id}')"` : ''}>
+    return `<div class="card${this.selectMode ? ' selectable' : ''}${sel ? ' selected' : ''}" data-id="${u.id}" data-st="${u.status}"${this.selectMode ? ` onclick="UI.toggleSelect('${u.id}')"` : ''}>
       <div class="card-top">
         ${this.selectMode ? `<div class="card-sel-dot">${sel ? '✓' : ''}</div>` : ''}
         <div class="card-name">${esc(u.name)}</div>
@@ -78,6 +107,7 @@ const UI = {
           ${checking ? '<span class="spin"></span>CHECKING…' : '▶ CHECK'}
         </button>
         <button class="btn-raw" onclick="${sp}UI.openRaw('${u.id}')" ${u.lastRaw ? '' : 'disabled'}>OUTPUT</button>
+        <button class="btn-set" onclick="${sp}POWER.open('${u.id}')" title="Set sector mode via telnet">SET</button>
       </div>
     </div>`;
   },
@@ -131,15 +161,16 @@ const UI = {
   // ---- changes modal: previous check vs latest ----
   openDiff() {
     const esc = s => String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
+    const stCls = s => `st-${this.STATUS_META[s] ? s : 'unchecked'}`;
     const chips = (status, sectors) => {
       if (sectors && sectors.length) {
         return sectors.map((s, i) => {
           const sm = this.STATUS_META[s] || this.STATUS_META.unchecked;
-          return `<span class="schip" style="background:${sm.color}" title="Sector ${i + 1}: ${sm.label}">S${i + 1}</span>`;
+          return `<span class="schip ${stCls(s)}" title="Sector ${i + 1}: ${sm.label}">S${i + 1}</span>`;
         }).join('');
       }
       const m = this.STATUS_META[status] || this.STATUS_META.unchecked;
-      return `<span class="schip" style="background:${m.color}">${m.label}</span>`;
+      return `<span class="schip ${stCls(status)}">${m.label}</span>`;
     };
 
     const changed = UDATA.units.filter(u => UDATA.changed(u));
