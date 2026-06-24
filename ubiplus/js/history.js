@@ -62,6 +62,18 @@ const HISTORY = {
 
   // approx storage used in KB
   sizeKB() { return Math.round(JSON.stringify(this.entries).length / 102.4) / 10; },
+
+  // Per-unit timeline for the card sparkline. Returns up to `limit` most-recent
+  // snapshots in chronological order; each entry is {ts, status, sectors}. Skips
+  // snapshots that don't include this unit (e.g. it was added after that check).
+  unitTimeline(unitId, limit = 40) {
+    const out = [];
+    for (const e of this.entries) {
+      const u = e.snap.find(s => s.id === unitId);
+      if (u) out.push({ ts: e.ts, status: u.status, sectors: u.sectors || [] });
+    }
+    return limit ? out.slice(-limit) : out;
+  },
 };
 
 // HISTMODAL — fleet history summary modal

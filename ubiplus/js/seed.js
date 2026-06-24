@@ -1,54 +1,100 @@
-// SEED — one-time site inventory from the commander's Excel (DATA_MEGIC.xlsx,
-// column A NodeId, deduped; excluded per engineer: MMSL_*, Halif*, Petel*,
-// Relay_*, MiniSite*, OutDoor*, BB_Test, APC_Live, *_SL variants).
-// IPs are RANDOM PLACEHOLDERS — real ones get fixed unit-by-unit on the OSP.
-// Runs once per browser (flag 'ubiplus_seeded'); never duplicates an existing
-// site name and never resurrects sites the engineer deleted.
+// SEED — real Ubiqam fleet, captured from the OSP UbiView tree (2026-06-24).
+// Replaces the old random-IP placeholder seed: 41 units across North + South.
+// On first boot in a browser the v2 migration aligns the existing inventory
+// with this list — removes units that aren't in the screenshots, updates IPs
+// on matches (name normalised: case + _/-/space collapsed), and adds missing.
 const SEED = {
   _FLAG: 'ubiplus_seeded',
+  _FLAG_V2: 'ubiplus_seed_v2_real_ips',
 
   SITES: [
-    'Ogen', 'Har_Adir', 'Keren_Naftaly', 'T_003', 'T_011', 'T_006', 'T_004',
-    'T_005', 'Liman', 'Yaara', 'Padam', 'Patzan_R', 'Gadi', 'Girit_M14',
-    'Nir_Am', 'Avital', 'T_013', 'T_001', 'Ifat', 'Havat_Hashomer',
-    'Mefalsim', 'KD111', 'Cliff', 'KD117', 'Beeri_31', 'KD116', 'Hermon_IL',
-    'Ronit', 'Kisufim_Aman', 'KD100', 'G_006_T', 'Beit_Lid', 'Shahar',
-    'KD208', 'Roei_2', 'Yaba_509', 'Armon_2', 'Tapuzina', 'Fares',
-    'Misgav_Am', 'Lord', 'Ifyun', 'Karish', 'Shikmim', 'Kisufim', 'Rafah_M5',
-    'G_004', 'G_003', 'G_002', 'G_001', 'Reiim', 'G_006', 'G_005', 'Arar',
-    'T_010', 'Kirya_2', 'T_012', 'Biranit', 'Asaf_M4', 'K_Hadracha', 'KD147',
-    'Nahal_Sion', 'Livne', 'T_014_BB', 'Tel_Aviv_CD', 'KD131', 'Vered',
-    'T_007', 'T_008', 'KD134', 'Masha_Erez', 'Maof', 'G_001_T', 'Shraga',
-    'Saviyon', 'Yoav', 'Netafim', 'Zariit', 'Ein_Zeitim', 'Nir_Oz', 'Zrifin',
-    'Orot_Rabin', 'Mehola_1', 'Mehola_2', 'Mehola_7', 'KD185', 'KD214_Michal',
-    'Cabri', 'Zeelim', 'Sde_Teiman', 'Har_Dov', 'Bilu', 'Yarkon_Aman',
-    'Nafach', 'M_Idan', 'Hardon_M3', 'Meteor_3', 'Ziporen', 'Meteor_8',
-    'Iftach', 'Mizpe_Zor', 'KD125', 'Astra', 'Narkis', 'Gaaton', 'NahalOz',
-    'Mazpash', 'Kela_NM', 'Amitay', 'Nafach_2', 'T_951B', 'KD27', 'T_951A',
-    'G_004_T', 'Kirya', 'M_Yarden', 'T_Matmon', 'Nativ_Asara', 'KD167',
-    'Horasha', 'Nisa_1', 'Filon', 'Osaka', 'Manara', 'Meiron', 'Yakinton',
-    'Paga2', 'Dugit', 'Nevatim',
+    // North
+    { name: 'Mizpe-Zur',    ip: '172.18.17.137' },
+    { name: 'Astra',        ip: '172.18.17.41'  },
+    { name: 'Avital',       ip: '172.18.17.97'  },
+    { name: 'Fares',        ip: '172.18.17.89'  },
+    { name: 'Har Adir',     ip: '172.18.17.145' },
+    { name: 'Har Dov',      ip: '172.18.17.81'  },
+    { name: 'Hermon_IL',    ip: '172.18.17.113' },
+    { name: 'Liman',        ip: '172.18.17.201' },
+    { name: 'Manara',       ip: '172.18.17.57'  },
+    { name: 'Mazpash',      ip: '172.18.18.233' },
+    { name: 'Meiron',       ip: '172.18.17.217' },
+    { name: 'Zarit',        ip: '172.18.17.129' },
+    { name: 'Ziporen',      ip: '172.18.17.169' },
+    // South
+    { name: 'Paga',         ip: '172.18.17.105' },
+    { name: 'T_Matmon',     ip: '172.18.18.49'  },
+    { name: 'Amitay',       ip: '172.18.18.89'  },
+    { name: 'Asaf',         ip: '172.18.18.185' },
+    { name: 'Garor 4',      ip: '172.18.18.1'   },
+    { name: 'Garor 5',      ip: '172.18.18.9'   },
+    { name: 'Hardon',       ip: '172.18.17.209' },
+    { name: 'Iftah',        ip: '172.18.17.177' },
+    { name: 'KD 100',       ip: '172.18.18.65'  },
+    { name: 'KD 125',       ip: '172.18.17.153' },
+    { name: 'KD 134',       ip: '172.18.17.233' },
+    { name: 'KD 167',       ip: '172.18.17.225' },
+    { name: 'KD185',        ip: '172.18.18.105' },
+    { name: 'KD27',         ip: '172.18.18.81'  },
+    { name: 'Kisufim',      ip: '172.18.17.33'  },
+    { name: 'Kisufim Aman', ip: '172.18.17.241' },
+    { name: 'Masha Erez',   ip: '172.18.18.25'  },
+    { name: 'Mefalsim',     ip: '172.18.18.33'  },
+    { name: 'Mehola_1',     ip: '172.18.18.73'  },
+    { name: 'Nahal Oz',     ip: '172.18.17.9'   },
+    { name: 'Nativ Asara',  ip: '172.18.18.57'  },
+    { name: 'Nir_Am',       ip: '172.18.17.17'  },
+    { name: 'Nir_Oz',       ip: '172.18.17.65'  },
+    { name: 'OutDoor_2',    ip: '172.18.17.161' },
+    { name: 'Rafah_M5',     ip: '172.18.17.193' },
+    { name: 'Reiim',        ip: '172.18.17.49'  },
+    { name: 'Roei_2',       ip: '172.18.18.241' },
+    { name: 'Sufa_208',     ip: '172.18.18.41'  },
   ],
 
+  _norm(s) { return String(s).toLowerCase().replace(/[\s_-]+/g, ' ').trim(); },
+
   run() {
-    if (localStorage.getItem(this._FLAG) === '1') return;
+    if (localStorage.getItem(this._FLAG_V2) === '1') return;
 
-    const existing = new Set(UDATA.units.map(u => u.name.toLowerCase()));
-    const usedIp = new Set(UDATA.units.map(u => u.ip));
+    const wanted = new Map(this.SITES.map(s => [this._norm(s.name), s]));
+    const kept = [];
+    let removed = 0, updated = 0;
+
+    for (const u of UDATA.units) {
+      const key = this._norm(u.name);
+      const match = wanted.get(key);
+      if (match) {
+        u.name = match.name;
+        u.ip = match.ip;
+        u.port = 10001;
+        u.user = 'idfuser';
+        u.pass = '6ehdZgg4';
+        wanted.delete(key);
+        kept.push(u);
+        updated++;
+      } else {
+        removed++;
+      }
+    }
+    UDATA.units = kept;
+
     let added = 0;
-
-    for (const name of this.SITES) {
-      if (existing.has(name.toLowerCase())) continue;
-      let ip;
-      do {
-        ip = `172.18.${1 + Math.floor(Math.random() * 254)}.${1 + Math.floor(Math.random() * 254)}`;
-      } while (usedIp.has(ip));
-      usedIp.add(ip);
-      UDATA.add({ name, ip, port: 10001, user: 'idfuser', pass: '6ehdZgg4', note: '' });
+    for (const s of wanted.values()) {
+      UDATA.add({ name: s.name, ip: s.ip, port: 10001, user: 'idfuser', pass: '6ehdZgg4', note: '' });
       added++;
     }
+    UDATA.save();
 
-    localStorage.setItem(this._FLAG, '1');
-    if (added) UI.toast(`Seeded ${added} sites from Excel — IPs are random placeholders`);
+    localStorage.setItem(this._FLAG_V2, '1');
+    localStorage.setItem(this._FLAG, '1'); // suppress any legacy v1 seed
+
+    const parts = [];
+    if (added)    parts.push(`+${added} added`);
+    if (updated)  parts.push(`${updated} IPs aligned`);
+    if (removed)  parts.push(`−${removed} removed`);
+    parts.push(`${UDATA.units.length} total`);
+    setTimeout(() => UI.toast('Fleet synced to OSP: ' + parts.join(' · ')), 400);
   },
 };

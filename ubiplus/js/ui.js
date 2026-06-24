@@ -4,6 +4,7 @@ const UI = {
   selected: new Set(),
   _filterSt: '',
   _filterQ: '',
+  _dragId: null,    // id of card currently being dragged
 
   STATUS_META: {
     inline:      { label: 'INLINE',    color: 'var(--st-inline)' },
@@ -45,7 +46,9 @@ const UI = {
     const has = UDATA.units.length > 0;
     hint.style.display = has ? 'none' : '';
     if (!has) { grid.innerHTML = ''; return; }
-    let units = UDATA.units;
+    // Sort by manual `order` (set by drag-reorder) before filtering, so the user's
+    // chosen layout is preserved across filter toggles.
+    let units = [...UDATA.units].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
     if (this._filterSt) units = units.filter(u => u.status === this._filterSt);
     if (this._filterQ)  units = units.filter(u => (u.name || '').toLowerCase().includes(this._filterQ));
     grid.innerHTML = units.length
@@ -89,27 +92,125 @@ const UI = {
         }).join('')}</span>`
       : `<span class="status-pill ${stCls(u.status)}"><span class="sp-dot"></span>${m.label}</span>`;
 
-    return `<div class="card${this.selectMode ? ' selectable' : ''}${sel ? ' selected' : ''}" data-id="${u.id}" data-st="${u.status}"${this.selectMode ? ` onclick="UI.toggleSelect('${u.id}')"` : ''}>
+    // Failure-stage hint: tiny line under IP, only on offline/transparent cards
+    // where we have a reason. Click to open the full OUTPUT for context.
+    const reasonHTML = (u.reason && (u.status === 'offline' || u.status === 'transparent'))
+      ? `<div class="card-reason" title="${esc(u.reason)} — click OUTPUT for full session log">${esc(u.reason)}</div>`
+      : '';
+
+    const sparkHTML = this._sparklineHTML(u);
+
+    // Drag is disabled while in selectMode (cards become click-to-select).
+    const dragAttrs = this.selectMode ? '' :
+      ` draggable="true" ondragstart="UI.dragStart(event,'${u.id}')" ondragend="UI.dragEnd(event)" ondragover="UI.dragOver(event,'${u.id}')" ondragleave="UI.dragLeave(event)" ondrop="UI.drop(event,'${u.id}')"`;
+
+    return `<div class="card${this.selectMode ? ' selectable' : ''}${sel ? ' selected' : ''}" data-id="${u.id}" data-st="${u.status}"${this.selectMode ? ` onclick="UI.toggleSelect('${u.id}')"` : ''}${dragAttrs}>
       <div class="card-top">
         ${this.selectMode ? `<div class="card-sel-dot">${sel ? '✓' : ''}</div>` : ''}
         <div class="card-name">${esc(u.name)}</div>
         <button class="card-edit" title="Edit unit" onclick="${sp}UNITMODAL.open('${u.id}')">✎</button>
       </div>
       <div class="card-addr">${esc(u.ip)}:${u.port}</div>
+      ${reasonHTML}
       ${u.note ? `<div class="card-note">${esc(u.note)}</div>` : ''}
       <div class="card-status-row">
         ${statusHTML}
         ${UDATA.changed(u) ? `<span class="chg-flag" title="Changed since previous check — was ${this._prevLabel(u)}">CHG</span>` : ''}
         <span class="card-last">${this._relTime(u.lastCheck)}</span>
       </div>
+      ${sparkHTML}
       <div class="card-actions">
         <button class="btn-check ${checking ? 'checking' : ''}" onclick="${sp}CHECK.unit('${u.id}')">
           ${checking ? '<span class="spin"></span>CHECKING…' : '▶ CHECK'}
         </button>
         <button class="btn-raw" onclick="${sp}UI.openRaw('${u.id}')" ${u.lastRaw ? '' : 'disabled'}>OUTPUT</button>
-        <button class="btn-set" onclick="${sp}POWER.open('${u.id}')" title="Set sector mode via telnet">SET</button>
+        <button class="btn-set" onclick="${sp}POWER.open('${u.id}')" title="Set sector mode">SET</button>
       </div>
     </div>`;
+  },
+
+  // Per-sector trend strip drawn from HISTORY snapshots. One row per sector
+  // (count taken from the latest snapshot's sector count, or 1 row for the
+  // aggregate if the unit has never reported sectors). Each cell uses the
+  // status color at that snapshot; missing-sector cells fall back to the
+  // unit-level status color. Skipped when there's less than 2 snapshots to
+  // show — a single bar conveys nothing.
+  _sparklineHTML(u) {
+    const tl = (typeof HISTORY !== 'undefined') ? HISTORY.unitTimeline(u.id, 40) : [];
+    if (tl.length < 2) return '';
+
+    const latest = tl[tl.length - 1];
+    const nSec = (latest.sectors && latest.sectors.length) || 0;
+    const cls = s => `st-${this.STATUS_META[s] ? s : 'unchecked'}`;
+    const lbl = s => (this.STATUS_META[s] || this.STATUS_META.unchecked).label;
+    const fmt = ts => new Date(ts).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' });
+
+    const rowFor = (sectorIdx) => {
+      const bars = tl.map(t => {
+        const st = sectorIdx == null
+          ? t.status
+          : (t.sectors && t.sectors[sectorIdx]) || t.status;
+        return `<span class="spbar ${cls(st)}" title="${fmt(t.ts)} — ${lbl(st)}"></span>`;
+      }).join('');
+      const label = sectorIdx == null ? '·' : `S${sectorIdx + 1}`;
+      return `<div class="sprow"><span class="splbl">${label}</span><div class="spbars">${bars}</div></div>`;
+    };
+
+    let rows;
+    if (nSec > 0) {
+      rows = Array.from({ length: nSec }, (_, i) => rowFor(i)).join('');
+    } else {
+      rows = rowFor(null); // aggregate fallback when no sectors known
+    }
+    return `<div class="sparkline" title="Last ${tl.length} checks">${rows}</div>`;
+  },
+
+  // ---- drag-to-reorder cards ----
+  // The whole card is draggable, but dragstart is cancelled if the user grabbed
+  // a button / input / select — so the action buttons still click cleanly.
+  dragStart(e, id) {
+    if (this.selectMode) { e.preventDefault(); return; }
+    if (e.target.closest('button, input, select, textarea, a')) {
+      e.preventDefault();
+      return;
+    }
+    this._dragId = id;
+    e.dataTransfer.effectAllowed = 'move';
+    try { e.dataTransfer.setData('text/plain', id); } catch {}
+    e.currentTarget.classList.add('dragging');
+  },
+
+  dragEnd(e) {
+    e.currentTarget.classList.remove('dragging');
+    document.querySelectorAll('.card.drop-target').forEach(el => el.classList.remove('drop-target'));
+    this._dragId = null;
+  },
+
+  dragOver(e, targetId) {
+    if (!this._dragId || this._dragId === targetId) return;
+    e.preventDefault(); // required to allow drop
+    e.dataTransfer.dropEffect = 'move';
+    const card = e.currentTarget;
+    if (!card.classList.contains('drop-target')) {
+      document.querySelectorAll('.card.drop-target').forEach(el => el.classList.remove('drop-target'));
+      card.classList.add('drop-target');
+    }
+  },
+
+  dragLeave(e) {
+    // Only clear when leaving the card entirely (not just a child element)
+    if (!e.currentTarget.contains(e.relatedTarget)) {
+      e.currentTarget.classList.remove('drop-target');
+    }
+  },
+
+  drop(e, targetId) {
+    e.preventDefault();
+    const draggedId = this._dragId || e.dataTransfer.getData('text/plain');
+    document.querySelectorAll('.card.drop-target').forEach(el => el.classList.remove('drop-target'));
+    if (!draggedId || draggedId === targetId) { this._dragId = null; return; }
+    if (UDATA.reorder(draggedId, targetId, true)) this.renderGrid();
+    this._dragId = null;
   },
 
   // ---- select mode: click cards to pick them, then bulk-delete ----

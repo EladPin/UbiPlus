@@ -23,6 +23,23 @@ const CHECK = {
     return new Set(sectors).size === 1 ? sectors[0] : 'mixed';
   },
 
+  // Map a raw server error string (or absence of a sector line) to a short tag
+  // suitable for the card. The full message stays in lastRaw — this is just the
+  // headline that prints next to the IP so the engineer doesn't have to open
+  // OUTPUT every time to know why a unit is offline/transparent.
+  _reasonFor(err) {
+    if (!err) return null;
+    const e = String(err);
+    if (/no tcp answer/i.test(e))                  return 'no TCP';
+    if (/tcp connect.*failed/i.test(e))            return 'TCP refused';
+    if (/no username prompt/i.test(e))             return 'no login prompt';
+    if (/no password prompt/i.test(e))             return 'auth stuck';
+    if (/no terminal prompt/i.test(e))             return 'auth failed';
+    if (/server unreachable/i.test(e))             return 'server down';
+    if (/session error/i.test(e))                  return 'session error';
+    return e.length <= 24 ? e : e.slice(0, 22) + '…';
+  },
+
   async unit(id) {
     const u = UDATA.get(id);
     if (!u || u._checking) return;
@@ -55,18 +72,23 @@ const CHECK = {
       : {};
     if (result.ok) {
       const sectors = this._parseSectors(result.output);
+      const status = this._aggregate(sectors);
+      // status==='transparent' from _aggregate means "got output but no sector line"
       UDATA.update(id, Object.assign({}, prev, {
-        status: this._aggregate(sectors),
+        status,
         sectors,
+        reason: status === 'transparent' ? 'no sector line' : null,
         lastCheck: now,
-        lastRaw: result.output,
+        lastRaw: result.output || result.error || '',
       }));
     } else {
       UDATA.update(id, Object.assign({}, prev, {
         status: 'offline',
         sectors: [],
+        reason: this._reasonFor(result.error),
         lastCheck: now,
-        lastRaw: result.error || 'Unknown error',
+        // server may have returned a partial transcript alongside the error
+        lastRaw: (result.output ? result.output + '\n\n' : '') + (result.error || 'Unknown error'),
       }));
     }
 

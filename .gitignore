@@ -1,2 +1,7 @@
+# Electron build artefacts — regenerate via the recipe in CLAUDE.md
+main.js
+package.json
+package-lock.json
 node_modules/
 dist/
+UbiPlus.zip

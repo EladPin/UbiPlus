@@ -9,6 +9,14 @@ const UDATA = {
     } catch (e) {
       this.units = [];
     }
+    // Migration: ensure every unit has an `order` field for drag-reorder.
+    // Existing inventories saved before this field was added get sequential
+    // orders matching their current array position, then persisted once.
+    let dirty = false;
+    this.units.forEach((u, i) => {
+      if (typeof u.order !== 'number') { u.order = i; dirty = true; }
+    });
+    if (dirty) this.save();
   },
 
   save() {
@@ -20,11 +28,14 @@ const UDATA = {
   },
 
   add({ name, ip, port, user, pass, note }) {
+    const maxOrder = this.units.reduce((m, u) => Math.max(m, u.order ?? -1), -1);
     const u = {
       id: 'u_' + Date.now() + '_' + Math.floor(Math.random() * 1000),
       name, ip, port, user, pass, note,
+      order: maxOrder + 1,
       status: 'unchecked',
       sectors: [],          // per-sector modes from last check, e.g. ['inline','bypass']
+      reason: null,         // short failure tag for offline/transparent (e.g. 'no TCP')
       lastCheck: null,
       lastRaw: null,
     };
@@ -44,6 +55,26 @@ const UDATA = {
   remove(id) {
     this.units = this.units.filter(u => u.id !== id);
     this.save();
+  },
+
+  // Move `draggedId` to the slot occupied by `targetId`, then renumber every
+  // unit's `order` sequentially so values stay tidy. `before=true` drops the
+  // dragged card immediately before the target; false drops it after.
+  reorder(draggedId, targetId, before = true) {
+    if (!draggedId || !targetId || draggedId === targetId) return false;
+    const sorted = [...this.units].sort((a, b) => (a.order ?? 0) - (b.order ?? 0));
+    const dragged = sorted.find(u => u.id === draggedId);
+    const target  = sorted.find(u => u.id === targetId);
+    if (!dragged || !target) return false;
+    const without = sorted.filter(u => u.id !== draggedId);
+    let idx = without.findIndex(u => u.id === targetId);
+    if (idx < 0) return false;
+    if (!before) idx += 1;
+    without.splice(idx, 0, dragged);
+    without.forEach((u, i) => { u.order = i; });
+    this.units = without;
+    this.save();
+    return true;
   },
 
   // true when the latest check differs from the previous one (status or any sector)

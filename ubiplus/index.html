@@ -68,6 +68,11 @@
           <span id="catLbl">Hide Cat</span>
           <span class="tools-item-hint">Lobby mascot</span>
         </button>
+        <button class="tools-item" onclick="TOOLSMENU.close();ABOUT.open()">
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+          About
+          <span class="tools-item-hint">The builder</span>
+        </button>
       </div>
     </div>
     <button class="btn-ghost btn-select" id="btnSelect" onclick="UI.toggleSelectMode()">SELECT</button>
@@ -257,7 +262,7 @@
         </button>
       </div>
       <pre class="pm-preview" id="pmPreview"></pre>
-      <div class="pm-hint">Command sent via telnet. A status check runs automatically after to confirm the change.</div>
+      <div class="pm-hint">A status check runs automatically after to confirm the change.</div>
     </div>
     <div class="modal-foot">
       <div class="modal-foot-spacer"></div>
@@ -266,6 +271,68 @@
     </div>
   </div>
 </div>
+
+<!-- ============ ABOUT MODAL (built-by Elad) ============ -->
+<div class="modal-overlay" id="aboutModal">
+  <div class="modal about-modal">
+    <div class="modal-head">
+      <span class="ab-hd-icon">✦</span>
+      <div class="modal-title">ABOUT THE BUILDER</div>
+      <button class="modal-x" onclick="ABOUT.close()">✕</button>
+    </div>
+
+    <div class="modal-body ab-body">
+      <!-- Skeleton (shown briefly) -->
+      <div class="ab-skeleton" id="abSkeleton">
+        <div class="ab-sk-photo"></div>
+        <div class="ab-sk-lines">
+          <div class="ab-sk-line ab-sk-title"></div>
+          <div class="ab-sk-line ab-sk-role"></div>
+          <div class="ab-sk-line"></div>
+          <div class="ab-sk-line"></div>
+          <div class="ab-sk-line" style="width:70%"></div>
+          <div class="ab-sk-line"></div>
+          <div class="ab-sk-line" style="width:50%"></div>
+        </div>
+      </div>
+
+      <!-- Real content -->
+      <div class="ab-content" id="abContent" style="display:none">
+        <div class="ab-photo-wrap">
+          <img class="ab-photo" src="assets/elad.jpg" alt="Elad Pinhasov"
+            onerror="this.style.display='none';this.nextElementSibling.style.display='flex'">
+          <div class="ab-photo-fallback" style="display:none">EP</div>
+        </div>
+        <div class="ab-info">
+          <div class="ab-name">Elad Pinhasov</div>
+          <div class="ab-role">UbiPlus Architect · Raw-TCP Whisperer · plink Survivor</div>
+          <ul class="ab-facts">
+            <li>Rewrote the entire session transport because plink kept hanging up the moment it was asked to be polite</li>
+            <li>Says "pasword" with a straight face. Multiple times a day. Refuses to file a firmware bug about it.</li>
+            <li>Considers <code>transparent</code> a personality trait, not just a sector mode</li>
+            <li>Can recite all 41 site IPs from memory; refuses to do it in reverse on principle</li>
+            <li>Holds the world record for "let me just check it on the OSP" — currently 7.4 times per shift</li>
+            <li>Adopted a terracotta pixel cat that lives in the header and judges every commit</li>
+            <li>Believes any unit that takes longer than 5 seconds to ACK is "ghosting him"</li>
+            <li>Once stared at a TRANSPARENT card so long it parsed itself out of guilt</li>
+          </ul>
+          <div class="ab-quote">"It's not a bug — the unit is just thinking really hard about whether it likes my password." — Elad, on raw TCP</div>
+
+          <div class="ab-mood">
+            <button class="ab-mood-btn" id="abMoodBtn" onclick="ABOUT.juneMood()">
+              <span id="abMoodLabel">June 2024</span>
+              <span class="ab-mood-arrow" id="abMoodArrow">▸</span>
+            </button>
+            <div class="ab-mood-list" id="abMoodList"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Fixed credit footer (click to open About) -->
+<div id="credit" onclick="ABOUT.open()" title="Click to meet the builder">Built by Elad Pinhasov</div>
 
 <div class="toast-wrap" id="toastWrap"></div>
 
@@ -291,6 +358,74 @@ const TOOLSMENU = {
   }
 };
 document.addEventListener('click', () => TOOLSMENU.close());
+
+// About modal — credit footer + TOOLS > About. The "June 2024" button is
+// the Elad easter egg: each click stacks one more mood line; after the
+// final mood the next click resets the stack. Skeleton flashes briefly
+// on open to match the Interfex pacing.
+const ABOUT = {
+  _timer: null,
+  _moodIdx: 0,
+  _moods: [
+    'Totally exhausted',
+    'Running on empty',
+    'Running on fumes',
+    'Fatigued',
+    'Counting down the days',
+  ],
+
+  open() {
+    const sk = document.getElementById('abSkeleton');
+    const c  = document.getElementById('abContent');
+    sk.style.display = 'flex';
+    c.style.display  = 'none';
+    this._resetMood();
+    document.getElementById('aboutModal').classList.add('open');
+    clearTimeout(this._timer);
+    this._timer = setTimeout(() => {
+      sk.style.display = 'none';
+      c.style.display  = 'flex';
+    }, 900);
+  },
+
+  close() {
+    document.getElementById('aboutModal').classList.remove('open');
+    clearTimeout(this._timer);
+  },
+
+  juneMood() {
+    const list  = document.getElementById('abMoodList');
+    const label = document.getElementById('abMoodLabel');
+    const arrow = document.getElementById('abMoodArrow');
+    const btn   = document.getElementById('abMoodBtn');
+
+    if (this._moodIdx >= this._moods.length) { this._resetMood(); return; }
+
+    const line = document.createElement('div');
+    line.className = 'ab-mood-line';
+    line.textContent = '• ' + this._moods[this._moodIdx];
+    list.appendChild(line);
+    this._moodIdx++;
+
+    if (this._moodIdx >= this._moods.length) {
+      label.textContent = '— all of the above —';
+      arrow.textContent = '↺';
+      btn.classList.add('ab-mood-done');
+    }
+  },
+
+  _resetMood() {
+    this._moodIdx = 0;
+    const list  = document.getElementById('abMoodList');
+    const label = document.getElementById('abMoodLabel');
+    const arrow = document.getElementById('abMoodArrow');
+    const btn   = document.getElementById('abMoodBtn');
+    if (list)  list.innerHTML = '';
+    if (label) label.textContent = 'June 2024';
+    if (arrow) arrow.textContent = '▸';
+    if (btn)   btn.classList.remove('ab-mood-done');
+  },
+};
 
 // theme toggle (parchment is default; original dark wall behind the toggle)
 const THEMEX = {

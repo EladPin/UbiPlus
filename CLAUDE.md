@@ -53,29 +53,50 @@ The OSP (Operations Support Platform) is a **separate, isolated office computer*
 **no internet access**, sitting on the internal network that can reach the Ubiqam units
 and ENM. The developer's home computer **cannot reach any Ubiqam unit**.
 
-- PuTTY is installed on the OSP; standalone `plink.exe` lives at `C:\tools\plink.exe`
-- `server.ps1` searches for plink in: PATH, `C:\Program Files\PuTTY`, `C:\PuTTY`,
-  `C:\tools`, Desktop, Downloads
+- `server.ps1` talks to units via direct TCP (PowerShell `TcpClient`); no plink/PuTTY/SSH
+  dependency. PuTTY can still be useful on the OSP for manual interactive sessions.
 - Fonts are self-hosted in `ubiplus/fonts/` (copied from Interfex) — never use a CDN
 
 ---
 
-## Telnet / plink integration
+## UBiFiX session transport
 
-Units are reached with **telnet** (NOT ssh): `plink -telnet {ip} -P {port}`.
+**Direct TCP from PowerShell — no plink, no telnet, no SSH.** The UBiFiX listener on port
+10001 is a plain byte stream. `Invoke-UbiSession` in `server.ps1` opens a `TcpClient`,
+reads/writes the socket directly, and walks the prompt sequence interactively.
 
-Pattern (inherited from Interfex AMOS work — same rules apply):
-1. Server writes a commands file with **Unix `\n` line endings only** (`[IO.File]::WriteAllText`).
-   CRITICAL: `\r\n` corrupts interactive prompts because the remote PTY translates `\r`→`\n`,
-   producing an extra empty answer to the next prompt.
-2. Feeds it to plink via stdin redirect: `plink -telnet {ip} -P {port} < commands.txt`
-3. Captures stdout/stderr concurrently with `ReadToEndAsync()` (prevents pipe-buffer deadlock).
-4. Strips ANSI escapes + control chars before JSON encoding:
-   ```powershell
-   $stdout = $stdout -replace '\x1b\[[0-9;]*[A-Za-z]', ''
-   $stdout = $stdout -replace '[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]', ''
-   ```
-5. Returns `{ok, output}` JSON to the browser, which parses the status.
+History (in case it shifts again):
+1. First attempt: `plink -telnet`. Hung — the unit doesn't speak telnet protocol, so plink
+   waited forever on IAC option replies the unit never sent.
+2. Second attempt: `plink -raw`. The unit replied (raw is just a TCP byte stream), but plink
+   closed the socket the instant our stdin EOF'd. Symptom: we saw the username ACK and the
+   password prompt, then nothing — plink was already gone before the unit (which takes
+   ~30–50s per command to ACK) could process the password.
+3. Current: direct TCP via `[System.Net.Sockets.TcpClient]`. Lets us wait for each prompt
+   before sending the next line and bail as soon as the sector line arrives. Strictly
+   better than plink for an interactive protocol, and removes the plink dependency entirely
+   (one less binary to drop on the OSP).
+
+Session pattern (`Invoke-UbiSession`):
+1. TCP connect with a 4s probe; on timeout return `No TCP answer ... unreachable`.
+2. Read until `Enter your user name--->` → write `{user}\n`. **Unix `\n` line endings only.**
+   (`\r\n` was a hazard in the old plink-on-telnet days; in raw TCP `\n` is what the unit
+   wants — verified.)
+3. Read until `Enter your pasword--->` (firmware typo is real) → write `{pass}\n`.
+4. Read until `--GEN4 TERMINALL -->` → write `{cmd}\n`.
+5. For `get status`: read until the sector line regex matches; for other commands: read
+   until `--Server ACK`. Bail at that point — we already have what we need.
+6. Best-effort `exit\n` then close the socket.
+
+All reads pass through ANSI-escape and control-char strippers before regex matching, then
+again on the final captured log before returning to the browser:
+```powershell
+$clean = $log.ToString() -replace '\x1b\[[0-9;]*[A-Za-z]', '' `
+                         -replace '[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]', ''
+```
+
+Returns `{ok, output}` on a clean session, `{error, output}` on any stage failure (with
+whatever partial transcript we managed to capture — useful for OUTPUT-button debugging).
 
 ### Real session format (VERIFIED from a PuTTY photo, Gen4 ver 2.3.31.00, 2025-07-30)
 
@@ -99,14 +120,17 @@ Parser (`statuscheck.js` `_parseSectors`) regex-matches that whole-line sector p
 splits on `--`. Aggregate (`_aggregate`): unanimous → that mode, else `mixed`; reachable but
 no sector line → `transparent` (unknown).
 
-**Still UNVERIFIED:** the on/off command syntax; whether `transparent` actually appears as a
-token in the sector line (never captured); whether the plink stdin-feed answers the
-`--->` prompts cleanly on the OSP. Standard fleet credentials: `idfuser` / `6ehdZgg4`
-(pre-filled in the Add Unit modal); port is always **10001**.
+**Still UNVERIFIED:** the on/off command syntax; whether `transparent` actually appears as
+a token in the sector line (never captured). **Verified 2026-06-24 on OSP:** the unit
+answers raw TCP on port 10001, ACKs `idfuser` immediately, prints the password prompt — and
+ACKs every subsequent command if you wait for each prompt before sending the next (the
+plink-based version closed the socket too early; direct TCP solved it). Standard fleet
+credentials: `idfuser` / `6ehdZgg4` (pre-filled in the Add Unit modal); port is always
+**10001**.
 
 ### server.ps1 endpoints
 - `GET  /ubiplus/*` — static files
-- `POST /ubi/status` — body `{ip, port, user, pass}` → runs plink telnet, returns `{ok, output}` or `{error}`. Timeout 30s. Single-threaded: blocks the server while running.
+- `POST /ubi/status` — body `{ip, port, user, pass}` → `Invoke-UbiSession`, returns `{ok, output}` or `{error, output}`. Per-stage timeout 75s, total ceiling 300s. Single-threaded: blocks the server while running.
 - `POST /ubi/power` — body `{ip, port, user, pass, cmd}` → same transport, sends `set link N mode {bypass|inline}`. Command syntax still UNVERIFIED against a real unit.
 
 ---
@@ -123,13 +147,17 @@ ubiplus/
     icon.png        — app icon (user-supplied, source of truth)
     icon.ico        — generated from icon.png for Electron builds (committed; see Electron section)
     icon.svg        — original SVG design concept (hexagon + U + plus); superseded by icon.png
+    elad.jpg        — builder portrait (copied from Interfex), shown in the About modal
   js/
     data.js         — UDATA: unit inventory CRUD, persisted in localStorage
-    seed.js         — one-time site list import (129 sites from DATA_MEGIC.xlsx, col A;
-                      placeholder random IPs, real ones entered on the OSP. Flag: 'ubiplus_seeded')
+    seed.js         — fleet sync (2026-06-24): 41 real units captured from the OSP UbiView
+                      tree (North + South). On first boot it migrates the existing inventory:
+                      removes units not in the screenshots, aligns IPs/port/user/pass on
+                      matches (name normalised: case + _/-/space collapsed), adds the rest.
+                      Flag: 'ubiplus_seed_v2_real_ips' (legacy 'ubiplus_seeded' also set)
     ui.js           — dashboard grid rendering, header stats, toasts, CSV export, filter/search
     unitmodal.js    — Add/Edit Unit modal
-    statuscheck.js  — single + check-all status flow, telnet output parser
+    statuscheck.js  — single + check-all status flow, raw-stream output parser
     powercontrol.js — SET modal: sector mode control (set link N mode bypass|inline)
     history.js      — HISTORY (snapshot store) + HISTMODAL (Fleet History modal with comparison
                       tabs and Search tab)
@@ -151,7 +179,8 @@ ubiplus/
                       Toggle: TOOLS > Hide Cat (localStorage 'ubiplus_cat'; legacy
                       'ubiplus_knight' read as fallback). The loading page (press overlay)
                       animates the same sit/groom sprite frames
-server.ps1          — PowerShell HTTP server + plink telnet proxy
+server.ps1          — PowerShell HTTP server + direct-TCP session driver
+                      (Invoke-UbiSession: prompt-driven login + command via TcpClient)
 .gitignore          — excludes Electron build artefacts: main.js, package.json,
                       package-lock.json, node_modules/, dist/
 ```
@@ -166,22 +195,24 @@ Boot sequence: `UDATA.load()` → `SEED.run()` → `UI.renderAll()` → `AUTOPOL
 
 ## Data model
 
-Inventory is **manual** (no Excel import): engineer adds each unit once in the app.
-Persisted in `localStorage` key `ubiplus_units`.
+Inventory is seeded from the OSP UbiView screenshots (see `seed.js`) and then editable
+in the app. Persisted in `localStorage` key `ubiplus_units`.
 
 ```js
 {
   id:    'u_1718000000000',  // generated
   name:  'Maof',             // site name (free text)
-  ip:    '10.20.30.40',
-  port:  23,
-  user:  '',                 // telnet login, optional until verified on OSP
-  pass:  '',
+  ip:    '172.18.17.137',
+  port:  10001,
+  user:  'idfuser',          // pre-filled standard fleet creds
+  pass:  '6ehdZgg4',
   note:  '',                 // free text (e.g. "north mast, sector 2")
+  order: 0,                  // manual sort position (drag-and-drop on cards)
   status:    'unchecked',    // aggregate: 'unchecked'|'inline'|'mixed'|'bypass'|'transparent'|'offline'
   sectors:   [],             // per-sector modes from last check, e.g. ['inline','inline','bypass']
+  reason:    null,           // short failure tag for offline/transparent cards (e.g. 'no TCP', 'auth failed', 'no sector line')
   lastCheck: null,           // ISO timestamp of last status check
-  lastRaw:   null,           // raw telnet output of last check (shown in detail modal)
+  lastRaw:   null,           // raw stream output of last check (shown in detail modal)
   // one-deep history for the Δ CHANGES feature — every completed check rotates
   // current → prev (first-ever check sets no baseline). UDATA.changed(u) compares.
   prevStatus:  undefined,    // aggregate of the check before the latest
@@ -200,15 +231,14 @@ Persisted in `localStorage` key `ubiplus_units`.
 - `ubiplus_history` — array of snapshots `[{ts, snap}]`; pruned by retention setting; hard cap 500 entries
 - `ubiplus_autopoll` — `{interval, retention}` — interval in seconds (0=off), retention in days
 - `ubiplus_theme2` — `'dark'` = dark mode; absent/other = parchment default (old key `ubiplus_theme` ignored)
-- `ubiplus_seeded` — `'1'` = seed.js already ran in this browser
+- `ubiplus_seeded` — `'1'` = legacy v1 seed flag, kept set to suppress re-seed
+- `ubiplus_seed_v2_real_ips` — `'1'` = v2 (real-fleet) sync has run in this browser
 - `ubiplus_cat` — `'0'` = cat hidden (legacy key `ubiplus_knight` read as fallback)
 
-Seed inventory came from `C:\Users\user\Desktop\data_for_interfex\DATA_MEGIC.xlsx`
-(sheet DATAFINAL, col A NodeId, 804 rows → 308 unique sites). Excluded families per the
-engineer: `MMSL_*` (Takti/1xxx/Pakar), `Halif*`, `Petel*`, `Relay_*`, `MiniSite*`,
-`OutDoor*`, `BB_Test`, `APC_Live`, and `*_SL` slave variants → **129 fixed sites**.
-KD* sites are real and kept. Seeded IPs are random placeholders (172.18.x.y) — the real
-per-unit IPs are only known/enterable on the OSP.
+Seed inventory was originally derived from `DATA_MEGIC.xlsx` (129 placeholder sites with
+random IPs). Replaced 2026-06-24 with the 41-unit real fleet captured from OSP UbiView
+screenshots — `seed.js` v2 migrates older browsers in place (removes unmatched units,
+aligns IPs/port/user/pass on matches, adds the rest).
 
 ---
 
@@ -259,6 +289,49 @@ Pruned by `AUTOPOLL.retention` (days) with a hard cap of 500 entries.
 - Retention selector in modal header persists to `ubiplus_autopoll`
 - EXPORT CSV: before/after comparison CSV with UTF-8-BOM (for Excel). Disabled on Search tab.
 - Storage estimate: ~10 KB per 129-unit snapshot; 3h interval × 7-day retention ≈ 560 KB
+
+### Per-card sparklines (added 2026-06-24)
+Each card draws a tiny per-sector trend strip from the latest 40 HISTORY snapshots:
+one row per sector (`S1`, `S2`, …) with one bar per snapshot, coloured by the sector's
+status at that point in time. Aggregate fallback (one row, labelled `·`) when the unit
+has never reported sectors. Skipped entirely when there are fewer than 2 snapshots.
+Driven by `HISTORY.unitTimeline(unitId, limit)` + `UI._sparklineHTML(u)`.
+
+### Failure-reason tags (added 2026-06-24)
+Cards in `offline` or `transparent` status show a small mono-font pill under the IP
+with a short tag (`no TCP`, `auth failed`, `no sector line`, …) — set by
+`CHECK._reasonFor(err)` from the server's structured error message. Full transcript is
+still in the OUTPUT modal; the pill is just so you don't have to open it for every dead
+unit during a mission sweep.
+
+### Drag-to-reorder cards (added 2026-06-24)
+Each card is `draggable="true"`. `UI.dragStart` cancels the drag if the user grabbed
+a button/input (so the action buttons still click cleanly). Drop calls
+`UDATA.reorder(draggedId, targetId, before=true)` which moves the dragged unit into the
+target's slot and renumbers every unit's `order` sequentially. `renderGrid()` sorts by
+`order` before filtering, so the manual layout survives filter toggles. Migration on
+`UDATA.load()` assigns sequential `order` to any unit missing the field.
+
+### About modal — "Built by Elad Pinhasov" (added 2026-06-24)
+Mirrors the Interfex pattern. Three entry points: a fixed `#credit` pill bottom-right of
+the dashboard, a TOOLS > About menu item, and Escape closes alongside the other modals.
+The photo is at `ubiplus/assets/elad.jpg` (copied from `interfex_8/img/elad.jpg`); falls
+back to an "EP" mono-initial tile if the JPG ever fails to load.
+
+The `ABOUT` controller lives inline in `index.html` (small enough not to deserve its own
+file). On `open()` it shows a brief skeleton for 900ms (matching Interfex's pacing), then
+swaps in the real content: name in Fraunces, blueprint-accent role line, eight
+UbiPlus-tailored facts ("Says `pasword` with a straight face. Multiple times a day.
+Refuses to file a firmware bug about it."), and a pull-quote.
+
+**June 2024 easter egg**: a pill button at the bottom of the modal. Each click stacks
+one more mood line in order: *Totally exhausted → Running on empty → Running on fumes
+→ Fatigued → Counting down the days*. After the fifth, the button morphs to
+"— all of the above —" with a ↺ icon; the next click resets the stack. Each line fades
+in with a tiny slide. Sole purpose: comic relief.
+
+Also: `server.ps1` MIME map now serves `.jpg` / `.jpeg` so the photo loads under the
+Electron build's local server.
 
 ---
 
@@ -449,47 +522,76 @@ Also add `ubiplus_demo` to localStorage: `'1'` = demo on.
 
 ---
 
-## Electron packaging (added 2026-06-13)
+## Electron packaging (added 2026-06-13, switched to electron-packager 2026-06-24)
 
 The app is packaged as a standalone Windows exe so the team can run it on the OSP without
 accidentally closing a browser tab while autopoll is running.
 
-Electron files (`main.js`, `package.json`, `package-lock.json`, `node_modules/`, `dist/`) are
-**not committed** — all excluded by `.gitignore`. Regenerate when needed.
+**None of the electron files are committed.** `.gitignore` excludes: `main.js`,
+`package.json`, `package-lock.json`, `node_modules/`, `dist/`, `UbiPlus.zip`. Regenerate
+every time before building — the recipe below is the source of truth.
 
-### Build recipe
+### Build recipe (regen from scratch on a fresh checkout)
 
+**1. Create `package.json`** in the project root:
+```json
+{
+  "name": "ubiplus",
+  "version": "1.0.0",
+  "description": "Ubiqam Fleet Monitor",
+  "main": "main.js",
+  "scripts": {
+    "start": "electron .",
+    "build": "electron-packager . UbiPlus --platform=win32 --arch=x64 --out=dist --electron-version=28.3.3 --overwrite --no-asar --icon=ubiplus/assets/icon.ico --ignore=node_modules --ignore=dist --ignore=.git --ignore=\"^/UbiPlus\\.zip$\" --ignore=\"\\.md$\""
+  },
+  "devDependencies": {
+    "electron": "^28.0.0",
+    "@electron/packager": "^18.0.0"
+  }
+}
+```
+
+Why these flags:
+- `--no-asar` is **load-bearing**: `main.js` spawns `server.ps1` via PowerShell, which
+  can't read inside an asar archive.
+- `--icon=...` embeds the UbiPlus icon directly (electron-packager does this in one pass —
+  no separate rcedit step needed).
+- `--ignore=^/UbiPlus\.zip$` keeps the previous build's zip out of the new one (it sits in
+  the project root after a successful build; without this it gets bundled and the zip
+  nearly doubles in size).
+- `--ignore=\.md$` drops `CLAUDE.md` / `DESIGN.md` from the shipped bundle (saves a few
+  KB, but mainly: they're internal docs, not for the OSP user).
+
+**2. Create `main.js`** in the project root (88 lines). Key bits:
+- `const port = 8093` — must match `server.ps1`'s `$port`.
+- Spawns `powershell.exe -ExecutionPolicy Bypass -File server.ps1 -NoLaunch` with stdio
+  ignored (no shell window).
+- Polls `http://localhost:8093/ubiplus/` up to 40×400ms until ready.
+- **Critical `res.resume()` + `serverReady` guard** (same bug as Interfex): without
+  draining the HTTP poll response, the socket stays open; when the server closes it the
+  error handler fires, the poller retries, finds the server up, and **opens a second
+  window**. Drain via `res.resume()` and guard with `serverReady` so only the first
+  successful poll triggers `win.loadURL()`.
+- On close, uses `taskkill /F /T /PID` to kill the entire PowerShell process tree —
+  Node's `.kill()` on Windows only hits the direct process; plink/etc. linger and hold
+  the port.
+
+**3. Build:**
 ```powershell
-cd d:\projects\ubiplus
+cd c:\projects\UbiPlus
 powershell -ExecutionPolicy Bypass -Command "npm install"
 powershell -ExecutionPolicy Bypass -Command "npm run build"
-# npm run build exits with code 1 due to a winCodeSign symlink error (macOS dylibs can't be
-# extracted without Developer Mode). This is harmless — the exe IS created in dist\win-unpacked.
-# The icon must be embedded separately because electron-builder skips it when signing fails:
-& node_modules\rcedit\bin\rcedit-x64.exe dist\win-unpacked\UbiPlus.exe --set-icon ubiplus\assets\icon.ico
-Compress-Archive -Path 'dist\win-unpacked\*' -DestinationPath 'dist\UbiPlus.zip' -Force
+# Output: dist\UbiPlus-win32-x64\UbiPlus.exe (~168 MB) with the icon embedded.
+Compress-Archive -Path 'dist\UbiPlus-win32-x64\*' -DestinationPath 'dist\UbiPlus.zip' -CompressionLevel Optimal -Force
+Copy-Item dist\UbiPlus.zip UbiPlus.zip
 ```
 
-Copy `dist\UbiPlus.zip` (~103 MB) to the OSP. Unzip anywhere, run `UbiPlus.exe`.
+Final `UbiPlus.zip` ≈ 103 MB. Copy to the OSP, unzip anywhere, run `UbiPlus.exe`.
 
-### package.json key settings
-```json
-{ "main": "main.js", "build": { "asar": false, "win": { "target": "dir",
-  "icon": "ubiplus/assets/icon.ico" },
-  "files": ["main.js","package.json","server.ps1","ubiplus/**"] } }
-```
-
-### main.js behaviour
-- Spawns `server.ps1 -NoLaunch` in the background (no PowerShell window)
-- Polls `http://localhost:8090/ubiplus/` up to 40×400ms until the server is ready
-- Opens a 1440×900 BrowserWindow with the UbiPlus icon; menu bar hidden
-- Kills the server process on window close
-
-**Critical — `res.resume()` + `serverReady` guard** (same bug as Interfex):
-Not draining the HTTP poll response leaves the socket open; when the server closes it, the
-error handler fires, the poller retries, finds the server up, and opens a second window.
-Fix: call `res.resume()` inside the poll callback, and guard with a `serverReady` boolean so
-only the first successful poll triggers `win.loadURL()`.
+(Historic note: the original recipe used `electron-builder` + a separate `rcedit` icon
+step. It exited with code 1 on every build because `winCodeSign` couldn't extract macOS
+dylibs without Developer Mode. Switched to `electron-packager` 2026-06-24 — cleaner, no
+spurious failures, icon embedded in one pass.)
 
 ### Icon
 `ubiplus/assets/icon.ico` is generated from `icon.png` by writing a minimal ICO binary that
@@ -505,14 +607,17 @@ $ent = [byte[]](0,0,0,0,1,0,32,0,($sz-band 0xFF),(($sz-shr 8)-band 0xFF),(($sz-s
 ---
 
 ## Known issues / pending work
-- Login sequence + `get status` output format now verified from a real PuTTY capture (see
-  Telnet section) — but the plink stdin-feed flow itself is still untested against a real unit
+- Login sequence + `get status` output format verified from a real PuTTY capture and from
+  the live OSP run on 2026-06-24 (see Session transport section). **Scripted checks complete
+  in ~4–6 seconds per unit** (live OSP measurement) — the ~30–50s "ACK lag" inferred from
+  the PuTTY photo was almost certainly the user reading prompts + typing; the unit itself
+  responds in milliseconds. 41-site sweep ≈ ~3–5 min, not the ~hour the earlier extrapolation
+  suggested.
 - `POST /ubi/power` (on/off) wired in server and UI but command syntax not yet confirmed on OSP;
   the SET button is visible but the actual `set link N mode` command may differ from what the
   firmware expects
-- Check-all is sequential (server is single-threaded). Healthy unit ≈ a few seconds; dead units
-  fail fast via a 4s TCP probe in `Invoke-UbiTelnet` (added so 80-site mission sweeps don't stall
-  30s per dead site). ~80 sites ≈ 5–10 min unattended vs ~80+ min clicking through UbiView.
+- Check-all is sequential (server is single-threaded). Dead units still fail fast via the
+  4s TCP probe in `Invoke-UbiSession` before the per-stage timeout (75s) can apply.
 - `UI.exportCSV()` (TOOLS > Export CSV) downloads the fleet table — one row per site, a column
   per sector, plus Changed (YES) + Changes ("S3 BYPASS -> INLINE") columns vs the previous
   check — as UTF-8-BOM CSV for Excel mission reports. No xlsx lib (OSP has no internet, no CDN).
