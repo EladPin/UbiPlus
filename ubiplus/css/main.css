@@ -60,13 +60,15 @@ html {
   --shadow-modal: 0 32px 80px rgba(45,47,52,.22), 0 4px 12px rgba(0,0,0,.05);
 
   /* status: deep-tone text/dot + muted badge tint (Slite category-badge pairs) */
-  --st-inline: #2e7d4f;       --st-inline-fg: #2e7d4f;       --st-inline-bg: #ddefe0;
-  --st-mixed: #446aa7;        --st-mixed-fg: #446aa7;        --st-mixed-bg: #e2ebf7;   /* dusk blue */
-  --st-bypass: #9d4d77;       --st-bypass-fg: #9d4d77;       --st-bypass-bg: #fae9f4;  /* mauve on blossom */
-  --st-transparent: #7f6c1f;  --st-transparent-fg: #7f6c1f;  --st-transparent-bg: #fbf4d8; /* ochre on buttercup */
-  --st-offline: #c0394b;      --st-offline-fg: #c0394b;      --st-offline-bg: #fbe3e4;
-  --st-unchecked: #9da3af;    --st-unchecked-fg: #656565;    --st-unchecked-bg: #f0e4d6;
-  --chg-bg: #fce4d8;          --chg-fg: #b34a22;             /* terracotta spot color */
+  --st-inline: #2e7d4f;        --st-inline-fg: #2e7d4f;        --st-inline-bg: #ddefe0;
+  --st-half-inline: #3a857d;   --st-half-inline-fg: #3a857d;   --st-half-inline-bg: #d6ece8;  /* teal — partial inline */
+  --st-mixed: #446aa7;         --st-mixed-fg: #446aa7;         --st-mixed-bg: #e2ebf7;   /* dusk blue */
+  --st-bypass: #9d4d77;        --st-bypass-fg: #9d4d77;        --st-bypass-bg: #fae9f4;  /* mauve on blossom */
+  --st-half-bypass: #a8526a;   --st-half-bypass-fg: #a8526a;   --st-half-bypass-bg: #f7dde4;  /* rose — partial bypass */
+  --st-transparent: #7f6c1f;   --st-transparent-fg: #7f6c1f;   --st-transparent-bg: #fbf4d8; /* ochre on buttercup */
+  --st-offline: #c0394b;       --st-offline-fg: #c0394b;       --st-offline-bg: #fbe3e4;
+  --st-unchecked: #9da3af;     --st-unchecked-fg: #656565;     --st-unchecked-bg: #f0e4d6;
+  --chg-bg: #fce4d8;           --chg-fg: #b34a22;              /* terracotta spot color */
 }
 
 /* ---- original dark status wall (TOOLS > Dark Mode) ---- */
@@ -118,13 +120,15 @@ html.dark {
   --shadow-modal: 0 24px 70px rgba(0,0,0,.45);
 
   /* solid neon chips with white text — the original wall look */
-  --st-inline: #19b563;       --st-inline-fg: #fff;       --st-inline-bg: #19b563;
-  --st-mixed: #2d9cdb;        --st-mixed-fg: #fff;        --st-mixed-bg: #2d9cdb;
-  --st-bypass: #8b3df5;       --st-bypass-fg: #fff;       --st-bypass-bg: #8b3df5;
-  --st-transparent: #7eb8d4;  --st-transparent-fg: #fff;  --st-transparent-bg: #7eb8d4;
-  --st-offline: #ff3b5c;      --st-offline-fg: #fff;      --st-offline-bg: #ff3b5c;
-  --st-unchecked: #6b7685;    --st-unchecked-fg: #fff;    --st-unchecked-bg: #6b7685;
-  --chg-bg: #7eb8d4;          --chg-fg: #fff;
+  --st-inline: #19b563;        --st-inline-fg: #fff;        --st-inline-bg: #19b563;
+  --st-half-inline: #4dd4c1;   --st-half-inline-fg: #fff;   --st-half-inline-bg: #4dd4c1;  /* cyan — partial inline */
+  --st-mixed: #2d9cdb;         --st-mixed-fg: #fff;         --st-mixed-bg: #2d9cdb;
+  --st-bypass: #8b3df5;        --st-bypass-fg: #fff;        --st-bypass-bg: #8b3df5;
+  --st-half-bypass: #d678a8;   --st-half-bypass-fg: #fff;   --st-half-bypass-bg: #d678a8;  /* pink — partial bypass */
+  --st-transparent: #7eb8d4;   --st-transparent-fg: #fff;   --st-transparent-bg: #7eb8d4;
+  --st-offline: #ff3b5c;       --st-offline-fg: #fff;       --st-offline-bg: #ff3b5c;
+  --st-unchecked: #6b7685;     --st-unchecked-fg: #fff;     --st-unchecked-bg: #6b7685;
+  --chg-bg: #7eb8d4;           --chg-fg: #fff;
 }
 
 * { box-sizing: border-box; margin: 0; padding: 0; }
@@ -472,8 +476,10 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 }
 .spbar { flex: 1; height: 100%; min-width: 2px; }
 .spbar.st-inline      { background: var(--st-inline); }
+.spbar.st-half-inline { background: var(--st-half-inline); }
 .spbar.st-mixed       { background: var(--st-mixed); }
 .spbar.st-bypass      { background: var(--st-bypass); }
+.spbar.st-half-bypass { background: var(--st-half-bypass); }
 .spbar.st-transparent { background: var(--st-transparent); }
 .spbar.st-offline     { background: var(--st-offline); }
 .spbar.st-unchecked   { background: var(--st-unchecked); }
@@ -520,8 +526,10 @@ button:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
 
 /* status class → badge color pair (consumed by .schip and .status-pill) */
 .st-inline      { --sc-bg: var(--st-inline-bg);      --sc-fg: var(--st-inline-fg); }
+.st-half-inline { --sc-bg: var(--st-half-inline-bg); --sc-fg: var(--st-half-inline-fg); }
 .st-mixed       { --sc-bg: var(--st-mixed-bg);       --sc-fg: var(--st-mixed-fg); }
 .st-bypass      { --sc-bg: var(--st-bypass-bg);      --sc-fg: var(--st-bypass-fg); }
+.st-half-bypass { --sc-bg: var(--st-half-bypass-bg); --sc-fg: var(--st-half-bypass-fg); }
 .st-transparent { --sc-bg: var(--st-transparent-bg); --sc-fg: var(--st-transparent-fg); }
 .st-offline     { --sc-bg: var(--st-offline-bg);     --sc-fg: var(--st-offline-fg); }
 .st-unchecked   { --sc-bg: var(--st-unchecked-bg);   --sc-fg: var(--st-unchecked-fg); }

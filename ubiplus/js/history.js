@@ -135,7 +135,7 @@ const HISTMODAL = {
     }
 
     const { baseline, latest } = pair;
-    const stLbl = s => (UI.STATUS_META[s] || UI.STATUS_META.unchecked).label;
+    const stLbl = s => UI._meta(s).label;
     const stCls = s => UI.STATUS_META[s] ? s : 'unchecked';
     const esc = s => String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;');
     const fmt = ts => new Date(ts).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' });
@@ -199,7 +199,7 @@ const HISTMODAL = {
     const pair = this._pair();
     if (!pair || !pair.latest) return;
     const { baseline, latest } = pair;
-    const stLbl = s => (UI.STATUS_META[s] || UI.STATUS_META.unchecked).label;
+    const stLbl = s => UI._meta(s).label;
     const cell = v => { v = v == null ? '' : String(v); return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v; };
 
     const maxSec = Math.max(1, ...latest.snap.map(u => (u.sectors || []).length));
@@ -311,7 +311,7 @@ const HISTMODAL = {
   _renderUnitTimeline(name) {
     const q = name.toLowerCase();
     const esc = s => String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;');
-    const stLbl = s => (UI.STATUS_META[s] || UI.STATUS_META.unchecked).label;
+    const stLbl = s => UI._meta(s).label;
     const stCls = s => UI.STATUS_META[s] ? s : 'unchecked';
     const fmt = ts => new Date(ts).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' });
 
@@ -375,7 +375,7 @@ const HISTMODAL = {
   _renderFleetAtTime(ms) {
     const snap = this._nearestSnap(ms);
     if (!snap) return '<div class="hm-empty">No snapshots to compare.</div>';
-    const stLbl = s => (UI.STATUS_META[s] || UI.STATUS_META.unchecked).label;
+    const stLbl = s => UI._meta(s).label;
     const stCls = s => UI.STATUS_META[s] ? s : 'unchecked';
     const esc = s => String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;');
     const fmt = ts => new Date(ts).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' });
@@ -412,7 +412,7 @@ const HISTMODAL = {
     const q = name.toLowerCase();
     const snap = this._nearestSnap(ms);
     if (!snap) return '<div class="hm-empty">No snapshots found.</div>';
-    const stLbl = s => (UI.STATUS_META[s] || UI.STATUS_META.unchecked).label;
+    const stLbl = s => UI._meta(s).label;
     const stCls = s => UI.STATUS_META[s] ? s : 'unchecked';
     const esc = s => String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;');
     const fmt = ts => new Date(ts).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' });

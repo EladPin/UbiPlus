@@ -7,12 +7,25 @@ const UI = {
   _dragId: null,    // id of card currently being dragged
 
   STATUS_META: {
-    inline:      { label: 'INLINE',    color: 'var(--st-inline)' },
-    mixed:       { label: 'MIXED',     color: 'var(--st-mixed)' },
-    bypass:      { label: 'BYPASS',    color: 'var(--st-bypass)' },
-    transparent: { label: 'TRANSPARENT', color: 'var(--st-transparent)' },
-    offline:     { label: 'OFFLINE',   color: 'var(--st-offline)' },
-    unchecked:   { label: 'UNCHECKED', color: 'var(--st-unchecked)' },
+    inline:        { label: 'INLINE',        color: 'var(--st-inline)' },
+    'half-inline': { label: 'HALF-INLINE',   color: 'var(--st-half-inline)' },
+    mixed:         { label: 'MIXED',         color: 'var(--st-mixed)' },
+    bypass:        { label: 'BYPASS',        color: 'var(--st-bypass)' },
+    'half-bypass': { label: 'HALF-BYPASS',   color: 'var(--st-half-bypass)' },
+    transparent:   { label: 'TRANSPARENT',   color: 'var(--st-transparent)' },
+    offline:       { label: 'OFFLINE',       color: 'var(--st-offline)' },
+    unchecked:     { label: 'UNCHECKED',     color: 'var(--st-unchecked)' },
+  },
+
+  // Meta lookup with a generic fallback for unknown modes. Future Ubiqam
+  // firmware revisions may surface tokens we haven't seen — those now render
+  // with their actual name (uppercased) and the neutral unchecked palette
+  // instead of being silently miscategorised.
+  _meta(s) {
+    return this.STATUS_META[s] || {
+      label: String(s || 'UNKNOWN').toUpperCase(),
+      color: 'var(--st-unchecked)',
+    };
   },
 
   renderAll() {
@@ -22,20 +35,25 @@ const UI = {
 
   renderStats() {
     const c = UDATA.counts();
-    const order = ['inline', 'mixed', 'bypass', 'transparent', 'offline', 'unchecked'];
-    document.getElementById('hdrStats').innerHTML = order.map(k => {
-      const m = this.STATUS_META[k];
-      return `<div class="hstat" title="${m.label}">
-        <span class="dot" style="background:${m.color}"></span>
-        <span class="num">${c[k] || 0}</span>
-        <span class="lbl">${m.label}</span>
-      </div>`;
-    }).join('');
+    // Order: pure-on states, partial-on, mixed, pure-off, partial-off, then anomalies.
+    // Counts of 0 for the half-* modes are hidden so they don't clutter the
+    // header on dashboards where those modes don't appear.
+    const order = ['inline', 'half-inline', 'mixed', 'bypass', 'half-bypass', 'transparent', 'offline', 'unchecked'];
+    document.getElementById('hdrStats').innerHTML = order
+      .filter(k => (c[k] || 0) > 0 || ['inline','mixed','bypass','transparent','offline','unchecked'].includes(k))
+      .map(k => {
+        const m = this._meta(k);
+        return `<div class="hstat" title="${m.label}">
+          <span class="dot" style="background:${m.color}"></span>
+          <span class="num">${c[k] || 0}</span>
+          <span class="lbl">${m.label}</span>
+        </div>`;
+      }).join('');
     // update filter pill counts
     document.querySelectorAll('#filterPills .fpill').forEach(b => {
       const st = b.dataset.st;
       const n = st ? (c[st] || 0) : UDATA.units.length;
-      const lbl = st ? (this.STATUS_META[st]?.label || st.toUpperCase()) : 'ALL';
+      const lbl = st ? this._meta(st).label : 'ALL';
       b.textContent = n ? `${lbl} · ${n}` : lbl;
     });
   },
@@ -77,7 +95,7 @@ const UI = {
   },
 
   _cardHTML(u) {
-    const m = this.STATUS_META[u.status] || this.STATUS_META.unchecked;
+    const m = this._meta(u.status);
     const checking = !!u._checking;
     const esc = s => String(s || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/"/g, '&quot;');
     const sel = this.selectMode && this.selected.has(u.id);
@@ -87,7 +105,7 @@ const UI = {
     const sectors = u.sectors || [];
     const statusHTML = sectors.length
       ? `<span class="sector-chips">${sectors.map((s, i) => {
-          const sm = this.STATUS_META[s] || this.STATUS_META.unchecked;
+          const sm = this._meta(s);
           return `<span class="schip ${stCls(s)}" title="Sector ${i + 1}: ${sm.label}">S${i + 1}</span>`;
         }).join('')}</span>`
       : `<span class="status-pill ${stCls(u.status)}"><span class="sp-dot"></span>${m.label}</span>`;
@@ -142,7 +160,7 @@ const UI = {
     const latest = tl[tl.length - 1];
     const nSec = (latest.sectors && latest.sectors.length) || 0;
     const cls = s => `st-${this.STATUS_META[s] ? s : 'unchecked'}`;
-    const lbl = s => (this.STATUS_META[s] || this.STATUS_META.unchecked).label;
+    const lbl = s => (this._meta(s)).label;
     const fmt = ts => new Date(ts).toLocaleString([], { dateStyle: 'short', timeStyle: 'short' });
 
     const rowFor = (sectorIdx) => {
@@ -256,7 +274,7 @@ const UI = {
 
   _prevLabel(u) {
     if (u.prevSectors && u.prevSectors.length) return u.prevSectors.join('--');
-    return (this.STATUS_META[u.prevStatus] || this.STATUS_META.unchecked).label;
+    return this._meta(u.prevStatus).label;
   },
 
   // ---- changes modal: previous check vs latest ----
@@ -266,11 +284,11 @@ const UI = {
     const chips = (status, sectors) => {
       if (sectors && sectors.length) {
         return sectors.map((s, i) => {
-          const sm = this.STATUS_META[s] || this.STATUS_META.unchecked;
+          const sm = this._meta(s);
           return `<span class="schip ${stCls(s)}" title="Sector ${i + 1}: ${sm.label}">S${i + 1}</span>`;
         }).join('');
       }
-      const m = this.STATUS_META[status] || this.STATUS_META.unchecked;
+      const m = this._meta(status);
       return `<span class="schip ${stCls(status)}">${m.label}</span>`;
     };
 
@@ -306,7 +324,7 @@ const UI = {
   openRaw(id) {
     const u = UDATA.get(id);
     if (!u || !u.lastRaw) return;
-    const m = this.STATUS_META[u.status] || this.STATUS_META.unchecked;
+    const m = this._meta(u.status);
     document.getElementById('rawTitle').textContent = `${u.name} — SESSION OUTPUT`;
     document.getElementById('rawMeta').innerHTML =
       `${u.ip}:${u.port} · <span style="color:${m.color}">${m.label}</span> · ${this._relTime(u.lastCheck)}`;
@@ -331,7 +349,7 @@ const UI = {
       v = v == null ? '' : String(v);
       return /[",\n]/.test(v) ? '"' + v.replace(/"/g, '""') + '"' : v;
     };
-    const label = s => s ? (this.STATUS_META[s] || this.STATUS_META.unchecked).label : '';
+    const label = s => s ? (this._meta(s)).label : '';
 
     // explicit before->after text, only for units that actually changed:
     // per-sector when both checks have the same sector count, otherwise full-state

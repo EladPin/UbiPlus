@@ -17,21 +17,33 @@ No API, no bulk query — UbiView exists but its GUI is poor and we want our own
 | Mode | Meaning | UbiView color | UbiPlus (parchment / dark theme) |
 |---|---|---|---|
 | `inline` | Unit working, actively cancelling interference | dark green | green — `#2e7d4f` / `#19b563` |
+| `half-inline` | Partial inline — one RF path cancelling, the other not (observed 2026-06-24) | — | teal `#3a857d` / cyan `#4dd4c1` |
 | `bypass` | Unit not working — RF passes through untouched | dark purple | purple — mauve `#9d4d77` / `#8b3df5` |
+| `half-bypass` | Speculative twin of `half-inline` (not yet observed; styled anyway) | — | rose `#a8526a` / pink `#d678a8` |
 | `transparent` | **Unknown** — control artery down, unit may be on or off | — | ochre `#7f6c1f` / steel blue `#7eb8d4` |
-| (unreachable) | Telnet connect failed / timeout | — | red — `#c0394b` / `#ff3b5c` |
+| (unreachable) | TCP connect failed / timeout | — | red — `#c0394b` / `#ff3b5c` |
 
 All of these live only in the CSS vars `--st-*` (per theme, with `--st-*-bg`/`--st-*-fg`
-badge pairs) — JS never hardcodes a status color.
+badge pairs) — JS never hardcodes a status color. `UI._meta(s)` is the only lookup point;
+any sector token the parser sees that isn't in `STATUS_META` renders as a generic chip
+using its own uppercased name + the unchecked palette (so future firmware modes parse
+without a code change — they just need CSS to look pretty).
 
 `transparent` is the painful one: the control channel is dead so the real RF state cannot be
 determined remotely. UbiPlus surfaces it honestly as UNKNOWN instead of hiding it.
 
-**A unit is per SITE but reports per SECTOR.** One telnet session returns one mode per sector
-on a single `--`-joined line, e.g. a 4-sector site: `inline--inline--bypass--bypass`.
-UbiPlus stores the array (`u.sectors`), renders a chip per sector on the card (S1, S2…), and
-aggregates for the card border / header counts: all sectors agree → that mode; they disagree
-→ `mixed` (blue, `--st-mixed`).
+**A unit is per SITE but reports per SECTOR.** One session returns one mode per sector
+on a single `--`-joined line, e.g. a 4-sector site: `inline--inline--bypass--bypass` or
+`inline--bypass--half-inline--inline`. UbiPlus stores the array (`u.sectors`), renders a
+chip per sector on the card (S1, S2…), and aggregates for the card border / header counts:
+all sectors agree → that mode; they disagree → `mixed` (blue, `--st-mixed`).
+
+**Parser permissiveness (`statuscheck.js _parseSectors`):** the regex used to be a strict
+alternation `inline|bypass|transparent`, which broke the moment `half-inline` showed up
+on a real unit (Amitay, 2026-06-24 — card silently went TRANSPARENT with "no sector
+line"). The regex now matches any lowercase token with an optional hyphen (`[a-z]+(?:-[a-z]+)?`)
+separated by `--`, alone on a line. Whole-line anchor + `--` separator make false matches
+extremely unlikely in the rest of a Gen4 session transcript.
 
 ---
 

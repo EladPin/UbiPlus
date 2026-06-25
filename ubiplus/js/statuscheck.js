@@ -4,14 +4,21 @@ const CHECK = {
   _abort: false,
 
   // ---- parse raw telnet output → per-sector modes ----
-  // Verified from a real PuTTY capture (Gen4 ver 2.3.31.00): after `get status`
-  // the unit prints `JC status 0x....` then one line with one mode per sector:
+  // Verified from real OSP captures (Gen4 ver 2.3.31.00 + 2.3.27.00): after
+  // `get status` the unit prints `JC status 0x....` then ONE line with one
+  // mode per sector joined by `--`:
   //   inline--inline--bypass--bypass
-  // `transparent` as a sector token is still an assumption (never captured).
+  //   inline--bypass--half-inline--inline    ← new mode discovered 2026-06-24
+  // Token regex was originally `inline|bypass|transparent` (strict), which made
+  // any unfamiliar mode like `half-inline` silently fail → unit went TRANSPARENT
+  // with "no sector line". Now permissive: any lowercase word with up to one
+  // hyphen, separated by `--`, alone on its own line. Whole-line + `--`
+  // separator make false positives extremely unlikely.
   _parseSectors(raw) {
     if (!raw) return [];
-    const m = raw.match(
-      /^[ \t]*((?:inline|bypass|transparent)(?:[ \t]*--[ \t]*(?:inline|bypass|transparent))*)[ \t]*$/im);
+    const tok = '[a-z]+(?:-[a-z]+)?';
+    const re  = new RegExp(`^[ \\t]*(${tok}(?:[ \\t]*--[ \\t]*${tok})*)[ \\t]*$`, 'im');
+    const m = raw.match(re);
     if (!m) return [];
     return m[1].toLowerCase().split('--').map(t => t.trim());
   },
