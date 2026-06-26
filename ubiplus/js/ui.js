@@ -126,6 +126,9 @@ const UI = {
       <div class="card-top">
         ${this.selectMode ? `<div class="card-sel-dot">${sel ? '✓' : ''}</div>` : ''}
         <div class="card-name">${esc(u.name)}</div>
+        <button class="card-icon-btn" title="${(typeof UVCLIENT !== 'undefined' && UVCLIENT.isConfigured()) ? 'Live stats from UbiView' : 'Configure UbiView in TOOLS > UbiView Stats'}" ${(typeof UVCLIENT !== 'undefined' && UVCLIENT.isConfigured()) ? '' : 'disabled'} onclick="${sp}STATSMODAL.open('${u.id}')">
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 3v18h18"/><path d="M7 14l4-4 4 3 5-6"/></svg>
+        </button>
         <button class="card-edit" title="Edit unit" onclick="${sp}UNITMODAL.open('${u.id}')">✎</button>
       </div>
       <div class="card-addr">${esc(u.ip)}:${u.port}</div>

@@ -177,6 +177,10 @@ ubiplus/
     ipimport.js     — IPIMPORT: bulk IP update from a CSV file (name + ip columns);
                       "+" button at right end of filter bar; updates ip/port/user/pass on
                       every matched unit; case-insensitive + underscore/space normalised matching
+    ubiview.js      — UVCLIENT: vendor NMS HTTP client (cfg storage, tree cache, IP→ucu
+                      mapping, rrd/inout/optix/devinfo fetches). See "UbiView NMS integration"
+    statsmodal.js   — UVSETTINGS (cred-config modal) + STATSMODAL (per-card live data
+                      modal: LIVE chart + SPECTROGRAM heatmaps + OPTiX + Device tabs)
     lobby.js        — LOBBY + CAT (replaced knight.js 2026-06, user's pick): a pixel living
                       room drawn into the free header stretch between stats and actions —
                       wall/floor, windows (day in parchment / moon + stars in dark, swaps
@@ -199,9 +203,9 @@ server.ps1          — PowerShell HTTP server + direct-TCP session driver
 
 Script load order in index.html:
 `data.js` → `seed.js` → `history.js` → `statuscheck.js` → `powercontrol.js` → `unitmodal.js`
-→ `ui.js` → `autopoll.js` → `ipimport.js` → `lobby.js`
+→ `ui.js` → `autopoll.js` → `ipimport.js` → `ubiview.js` → `statsmodal.js` → `lobby.js`
 
-Boot sequence: `UDATA.load()` → `SEED.run()` → `UI.renderAll()` → `AUTOPOLL.init()` → `CAT.init()`
+Boot sequence: `UDATA.load()` → `SEED.run()` → `UVCLIENT.loadCfg()` → `UI.renderAll()` → `AUTOPOLL.init()` → `CAT.init()`
 
 ---
 
@@ -246,6 +250,10 @@ in the app. Persisted in `localStorage` key `ubiplus_units`.
 - `ubiplus_seeded` — `'1'` = legacy v1 seed flag, kept set to suppress re-seed
 - `ubiplus_seed_v2_real_ips` — `'1'` = v2 (real-fleet) sync has run in this browser
 - `ubiplus_cat` — `'0'` = cat hidden (legacy key `ubiplus_knight` read as fallback)
+- `ubiplus_uv_cfg` — UbiView NMS credentials: `{baseUrl, outerUser, outerPass, innerUser, innerPass}`
+- `ubiplus_uv_tree_cache_v2` — cached `getTreeData` result with `ts` for 6h TTL
+  (key bumped from `ubiplus_uv_tree_cache` after the silent-empty-tree fix; legacy
+  v1 key is auto-removed on boot)
 
 Seed inventory was originally derived from `DATA_MEGIC.xlsx` (129 placeholder sites with
 random IPs). Replaced 2026-06-24 with the 41-unit real fleet captured from OSP UbiView
@@ -323,6 +331,144 @@ a button/input (so the action buttons still click cleanly). Drop calls
 target's slot and renumbers every unit's `order` sequentially. `renderGrid()` sorts by
 `order` before filtering, so the manual layout survives filter toggles. Migration on
 `UDATA.load()` assigns sequential `order` to any unit missing the field.
+
+### UbiView NMS integration — Stats modal (added 2026-06-26)
+**The vendor's telnet ACL gives `idfuser` only `get status` and `set link N mode`.**
+But the same fleet's data — RSSI, spectrograms, OPTiX mode, device info — is fully
+exposed to the engineer through the vendor's web NMS at `172.19.15.51/NMS`
+(UbiView). UbiPlus now replicates the HTTP calls UbiView's own frontend makes,
+authenticating as the same `idfuser1` web user. Different door, broader permissions,
+no unit-level ACL involved.
+
+**Reverse-engineered from OSP HAR captures 2026-06-25.** See `ubiview.js` + the
+`Invoke-UvLogin / Invoke-UvCall / Ensure-UvSession` helpers + the `/ubi/uv/*`
+endpoints in `server.ps1`.
+
+#### Two-stage auth (plus one critical client-side cookie)
+1. **Outer gate**: `POST /NMS/` with `access_login=<u>&access_password=<p>&Submit=Submit`
+   (form-urlencoded). UbiView's PHP wrapper sets `verify=<32-char hex>` + `PHPSESSID=<id>`
+   cookies. Returns the SPA HTML — we only care about the cookies.
+2. **UbiView app**: `POST /NMS/adminservice.php` with `method=user_login&username=<u>&password=<p>`.
+   Server marks the PHPSESSID as authenticated. Returns
+   `{isAuth, uid, hash, userData:{role: 'NewGraphs,Spectrograms,Remote,DeviceInfo,OptixMode,...'}}`.
+3. **(client-side, load-bearing)** UbiView's frontend JS reads the `user_login` response
+   and writes a *third* cookie itself via `document.cookie`: `uid=<uid>|<hash>`. **Without
+   this cookie every subsequent data call returns an empty body** — the server treats the
+   PHPSESSID as half-authenticated. Server-side reproduces this manually by adding the
+   cookie to the `WebRequestSession`'s `CookieContainer` right after parsing the JSON.
+   This was the gotcha that made `getTreeData` return null the first time we wired it up
+   (discovered by HAR-diffing cookie sets between the unauthenticated `user_login` request
+   and every authenticated request after it).
+
+Server-side `Ensure-UvSession` runs both stages once and keeps the cookie jar in
+`$script:UvState.Session` (a `WebRequestSession`). Auto re-logs after 120 min or
+if a call returns HTML instead of JSON (the PHP redirect = session-expired tell).
+
+#### Discovered methods on `/NMS/adminservice.php`
+All POST form-urlencoded with a `method=...&...` body. Server proxies them through
+`/ubi/uv/<short>`:
+
+| Short path | Method | Returns |
+|---|---|---|
+| `/ubi/uv/login`   | `user_login` | Force-test login |
+| `/ubi/uv/tree`    | `getTreeData` | 186KB fleet hierarchy (cached browser-side 6h) |
+| `/ubi/uv/rrd`     | `getUbifixRRDData` | TD Graph time-series: `wb_power_a/b`, `input_power_aN/bN`, `output_power_aN/bN`, `alarm_reg` per `msec_epoch` |
+| `/ubi/uv/inout`   | `getUbifixInoutData` | Spectrogram: `a_in/b_in/a_out/b_out` arrays (~120 freq bins each) per `msec_epoch` |
+| `/ubi/uv/optix`   | `getUbifixOptixModeData` | OPTiX mode timeline per sector (modeNumber + linkStatus + start/end epochs) |
+| `/ubi/uv/devinfo` | `getDeviceInfo` | Static device metadata (part/serial #, FW versions, frequencies) |
+
+Browser sends credentials with every call; server only re-logs in when the session
+is missing/expired.
+
+#### Response protocol — `Send-Raw` (not `Send-Json`) for big data endpoints
+**Tree / RRD / Inout responses are 100–250 KB of UbiView's own JSON.** The original
+implementation wrapped them in `@{ok=$true; raw=<huge string>}` and ran the whole thing
+through `ConvertTo-Json` — that was producing output the browser couldn't parse (the
+silent-empty-tree symptom). Fixed by adding a `Send-Raw $res $body` helper that writes
+the upstream JSON body verbatim with the right MIME type. HTTP status code carries the
+ok/error signal:
+- **200**: body IS the parsed UbiView JSON (no wrapper, no double-encoding).
+- **4xx/5xx**: body is `{error: '...'}` via `Send-Json` (errors are small, wrapping is fine).
+
+Browser `_post` reads `await res.text()` then `JSON.parse`s on success, or parses the
+error envelope on failure. Login/test-connection still uses `Send-Json` since those
+responses are tiny.
+
+#### IP → ucu mapping (browser-side, `UVCLIENT._parseTree`)
+Each UbiPlus unit needs to be matched to UbiView's identifiers before any data
+call. From `getTreeData.treeNodesData`:
+- `node_name`: `"Iftah 172.18.17.177"` → extract IP + siteName
+- `act_name`: `"ucu2314"` → the UbiView unit ID
+- `id`: `"D_un_102"` → base treeId = 102
+
+`treeDataH` (per-parent children) is **sparse and unreliable** — only populated for
+branches that were expanded in the UbiView UI when the tree was fetched. So we
+**synthesize** the 4 sectors per unit from the documented treeId convention:
+```
+sector A: nodeName=ucuXXXX-A, treeId=base+0, customTreeId=un_<base+0>
+sector B: nodeName=ucuXXXX-B, treeId=base+1, customTreeId=un_<base+1>
+sector C: nodeName=ucuXXXX-C, treeId=base+2, customTreeId=un_<base+2>
+sector D: nodeName=ucuXXXX-D, treeId=base+3, customTreeId=un_<base+3>
+(slot base+4 = the UCU controller, not exposed in UbiPlus)
+```
+Verified against the real `getUbifixRRDData` calls in the HAR — exact match.
+40 of our 41 sites map cleanly; the 41st (Asaf) has a 1-digit IP discrepancy
+between our seed and UbiView's tree (`.18.185` vs `.17.185`) which the user can
+fix by editing the IP in UbiPlus or accepting the missing-stats state.
+
+3-sector units (where the 4th doesn't exist) just return empty data for sector D;
+the UI surfaces "No RSSI data returned for sector D" gracefully.
+
+#### Browser UI
+- **TOOLS > UbiView Stats** opens the settings modal (`UVSETTINGS`):
+  4 fields (NMS URL + outer-gate user/pass + inner UbiView user/pass), TEST button
+  that does a live login round-trip and reports the role string, SAVE/CLEAR.
+  Stored in `localStorage` key `ubiplus_uv_cfg`.
+- **STATS icon in the card top** (small chart-glyph SVG button next to the ✎ edit
+  pencil; intentionally NOT in the action row so CHECK/OUTPUT/SET aren't crowded into
+  4 buttons). Disabled until UV creds are saved. Opens `STATSMODAL` with four tabs
+  and a sector-selector pill row (S1..S4 from the unit's synthesized sectors):
+  - **LIVE** — current scalar values from `getUbifixRRDData` + canvas line chart of
+    the last hour for channel-0 In/Out per antenna A/B (matches UbiView's TD Graph
+    layout). Sentinel values (`-99` / `-136` / `0` = "no signal") are filtered from
+    the Y-range computation so they don't compress the visible range, AND channels
+    that contain only sentinels render at 35% opacity (`.st-chan-empty`,
+    `.st-wb-empty`) so the eye lands on the channel that actually carries signal.
+    Most units only use Ch 0 in practice.
+  - **SPECTROGRAM** — 2×2 canvas heatmap grid (A In, B In, A Out, B Out) from
+    `getUbifixInoutData`. Rows = time, columns = freq bins; custom 5-stop turbo-ish
+    gradient (deep indigo → cyan → green → yellow → magenta-red). **"No signal"
+    cells are coloured by sampling the live `--surface-hi` CSS var** so they fade
+    into the modal panel in both themes (the original hard-coded parchment cream
+    looked harsh against dark mode).
+  - **OPTiX** — table of mode timeline entries per sector.
+  - **DEVICE** — `getDeviceInfo` key/value table.
+- Tree is cached browser-side in `localStorage` key `ubiplus_uv_tree_cache_v2`
+  (TTL 6h, key bumped from v1 after the silent-empty-tree fix to invalidate any
+  bad cache from the broken protocol). Refreshed on demand via
+  `UVCLIENT.getTree(true)`. `saveCfg` drops the tree cache automatically so a
+  credential change always re-fetches against the new NMS. Stats data is cached
+  per-(unit, sector, tab) for the lifetime of the modal session; REFRESH button
+  clears the current cell and re-fetches.
+
+#### Files
+- `server.ps1` — `Invoke-UvLogin` (with the manual `uid` cookie set), `Ensure-UvSession`, `Invoke-UvCall`, `_UvFormBody`, `Send-Raw` helpers + `elseif POST $path -like 'ubi/uv/*'` handler block (top of the request loop after the existing `/ubi/status` / `/ubi/power` branches)
+- `ubiplus/js/ubiview.js` — `UVCLIENT` module: cfg storage, low-level `_post` (status-based protocol), `getTree` (with localStorage cache + diagnostic console logging), `_parseTree` (IP→ucu mapping by synthesis), `getRRD/getInout/getOptix/getDeviceInfo`, `latestRrdPoint/rrdSeries`, `describeTree` (for the diagnostic in error messages)
+- `ubiplus/js/statsmodal.js` — `UVSETTINGS` + `STATSMODAL` controllers + canvas line chart + canvas heatmap renderer + turbo color helper + `_cssRgb` theme-var sampler
+- `ubiplus/css/main.css` — `.card-icon-btn` (the new card-top STATS icon), `.uv-settings-modal *`, `.stats-modal *`, `.st-chan-empty` / `.st-wb-empty` dim states (~280 lines total)
+- `ubiplus/index.html` — TOOLS > UbiView Stats menu item, both modal `<div>`s, `<script>` tags for ubiview.js + statsmodal.js, boot-time `UVCLIENT.loadCfg()`
+
+#### localStorage keys (added)
+- `ubiplus_uv_cfg` — `{baseUrl, outerUser, outerPass, innerUser, innerPass}`
+- `ubiplus_uv_tree_cache_v2` — `{ts, units: [{ip, siteName, ucuName, treeId, sectors:[...]}], rawTopKeys, rawNodeCount}`, 6h TTL
+- `ubiplus_uv_tree_cache` (legacy v1) — auto-removed on boot
+
+#### Security notes
+The two passwords stored in localStorage are the user's real OSP credentials.
+They never leave the user's machine — they only travel between browser and the
+local server (`localhost:8093`), then from server to the OSP NMS (`172.19.15.51`).
+The Electron app runs entirely on the OSP. CLEAR button in UV Settings wipes
+both cfg and tree cache.
 
 ### About modal — "Built by Elad Pinhasov" (added 2026-06-24)
 Mirrors the Interfex pattern. Three entry points: a fixed `#credit` pill bottom-right of

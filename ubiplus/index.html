@@ -68,6 +68,11 @@
           <span id="catLbl">Hide Cat</span>
           <span class="tools-item-hint">Lobby mascot</span>
         </button>
+        <button class="tools-item" onclick="TOOLSMENU.close();UVSETTINGS.open()">
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/><circle cx="20" cy="6" r="2"/></svg>
+          UbiView Stats
+          <span class="tools-item-hint">NMS connection</span>
+        </button>
         <button class="tools-item" onclick="TOOLSMENU.close();ABOUT.open()">
           <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
           About
@@ -272,6 +277,71 @@
   </div>
 </div>
 
+<!-- ============ UBIVIEW STATS - SETTINGS MODAL ============ -->
+<div class="modal-overlay" id="uvSettingsModal">
+  <div class="modal uv-settings-modal">
+    <div class="modal-head">
+      <div class="modal-title">UBIVIEW STATS - CONNECTION</div>
+      <button class="modal-x" onclick="UVSETTINGS.close()">&times;</button>
+    </div>
+    <div class="modal-body uv-settings-body">
+      <p class="uv-intro">UbiPlus can pull RSSI, spectrograms and device info from your UbiView NMS the
+        same way the web UI does. Enter the same credentials you use to log into the NMS:
+        the outer "Please enter password" gate first, then the inner USER AUTHENTICATION.</p>
+
+      <div class="uv-sect-label">NMS URL</div>
+      <input type="text" id="uvBaseUrl" placeholder="http://172.19.15.51/NMS" autocomplete="off">
+
+      <div class="uv-sect-label">OUTER GATE (the "Please enter password" page)</div>
+      <div class="uv-row">
+        <input type="text" id="uvOuterUser" placeholder="Login (e.g. idf)" autocomplete="off">
+        <input type="password" id="uvOuterPass" placeholder="Password" autocomplete="off">
+      </div>
+
+      <div class="uv-sect-label">UBIVIEW APP USER (the USER AUTHENTICATION login)</div>
+      <div class="uv-row">
+        <input type="text" id="uvInnerUser" placeholder="Username (e.g. idfuser1)" autocomplete="off">
+        <input type="password" id="uvInnerPass" placeholder="Password" autocomplete="off">
+      </div>
+
+      <div class="uv-status" id="uvStatus"></div>
+    </div>
+    <div class="modal-foot">
+      <button class="btn-ghost" onclick="UVSETTINGS.clear()">CLEAR</button>
+      <div class="modal-foot-spacer"></div>
+      <button class="btn-ghost" onclick="UVSETTINGS.close()">CANCEL</button>
+      <button class="btn-ghost" onclick="UVSETTINGS.test()">TEST</button>
+      <button class="btn-cta" onclick="UVSETTINGS.save()">SAVE</button>
+    </div>
+  </div>
+</div>
+
+<!-- ============ UBIVIEW STATS - PER-CARD STATS MODAL ============ -->
+<div class="modal-overlay" id="statsModal">
+  <div class="modal stats-modal">
+    <div class="modal-head">
+      <div class="modal-title" id="stTitle">STATS</div>
+      <div class="st-sector-pills" id="stSectorPills"></div>
+      <button class="modal-x" onclick="STATSMODAL.close()">&times;</button>
+    </div>
+    <div class="st-tabs">
+      <button class="st-tab active" data-tab="live"    onclick="STATSMODAL.setTab('live')">LIVE</button>
+      <button class="st-tab"        data-tab="spectro" onclick="STATSMODAL.setTab('spectro')">SPECTROGRAM</button>
+      <button class="st-tab"        data-tab="optix"   onclick="STATSMODAL.setTab('optix')">OPTiX</button>
+      <button class="st-tab"        data-tab="device"  onclick="STATSMODAL.setTab('device')">DEVICE</button>
+    </div>
+    <div class="modal-body st-body" id="stBody">
+      <div class="st-placeholder">Loading...</div>
+    </div>
+    <div class="modal-foot">
+      <span class="st-foot-meta" id="stFootMeta"></span>
+      <div class="modal-foot-spacer"></div>
+      <button class="btn-ghost" onclick="STATSMODAL.refresh()">REFRESH</button>
+      <button class="btn-ghost" onclick="STATSMODAL.close()">CLOSE</button>
+    </div>
+  </div>
+</div>
+
 <!-- ============ ABOUT MODAL (built-by Elad) ============ -->
 <div class="modal-overlay" id="aboutModal">
   <div class="modal about-modal">
@@ -345,6 +415,8 @@
 <script src="js/ui.js"></script>
 <script src="js/autopoll.js"></script>
 <script src="js/ipimport.js"></script>
+<script src="js/ubiview.js"></script>
+<script src="js/statsmodal.js"></script>
 <script src="js/lobby.js"></script>
 <script>
 // tools dropdown (pattern copied from Interfex)
@@ -468,6 +540,7 @@ window.addEventListener('load', () => {
 // boot
 UDATA.load();
 SEED.run();        // one-time Excel site import (no-op after first run)
+UVCLIENT.loadCfg();// restores UbiView NMS credentials from localStorage
 UI.renderAll();
 AUTOPOLL.init();   // loads history, restores poll interval + countdown
 CAT.init();        // builds the header lobby too
