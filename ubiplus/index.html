@@ -58,6 +58,17 @@
           <span class="tools-item-hint">Fleet change log</span>
         </button>
         <div class="tools-divider"></div>
+        <button class="tools-item" onclick="TOOLSMENU.close();BACKUP.export()">
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/><polyline points="17 21 17 13 7 13 7 21"/><polyline points="7 3 7 8 15 8"/></svg>
+          Export Data
+          <span class="tools-item-hint">Backup to file</span>
+        </button>
+        <button class="tools-item" onclick="TOOLSMENU.close();BACKUP.pick()">
+          <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+          Import Data
+          <span class="tools-item-hint">Restore from file</span>
+        </button>
+        <div class="tools-divider"></div>
         <button class="tools-item" onclick="TOOLSMENU.close();THEMEX.toggle()">
           <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="5"/><line x1="12" y1="1" x2="12" y2="3"/><line x1="12" y1="21" x2="12" y2="23"/><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"/><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"/><line x1="1" y1="12" x2="3" y2="12"/><line x1="21" y1="12" x2="23" y2="12"/><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"/><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"/></svg>
           <span id="btnTheme">Light Mode</span>
@@ -401,6 +412,25 @@
   </div>
 </div>
 
+<!-- ============ IMPORT DATABASE — CONFIRM MODAL ============ -->
+<div class="modal-overlay" id="backupModal">
+  <div class="modal">
+    <div class="modal-head">
+      <div class="modal-title">IMPORT DATABASE</div>
+      <button class="modal-x" onclick="BACKUP.close()">✕</button>
+    </div>
+    <div class="modal-body">
+      <div class="bk-summary" id="bkSummary"></div>
+    </div>
+    <div class="modal-foot">
+      <div class="modal-foot-spacer"></div>
+      <button class="btn-ghost" onclick="BACKUP.close()">CANCEL</button>
+      <button class="btn-cta" onclick="BACKUP.confirm()">IMPORT</button>
+    </div>
+  </div>
+</div>
+<input type="file" id="backupFile" accept=".json" style="display:none" onchange="BACKUP.onFile(this)">
+
 <!-- Fixed credit footer (click to open About) -->
 <div id="credit" onclick="ABOUT.open()" title="Click to meet the builder">Built by Elad Pinhasov</div>
 
@@ -418,6 +448,7 @@
 <script src="js/ubiview.js"></script>
 <script src="js/statsmodal.js"></script>
 <script src="js/lobby.js"></script>
+<script src="js/backup.js"></script>
 <script>
 // tools dropdown (pattern copied from Interfex)
 const TOOLSMENU = {

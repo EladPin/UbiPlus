@@ -1668,3 +1668,27 @@ html.dark .btn-import-ips { background: var(--surface); }
   .st-live-grid { grid-template-columns: 1fr; }
   .st-spec-grid { grid-template-columns: 1fr; }
 }
+
+/* ============ IMPORT DATABASE — CONFIRM SUMMARY ============ */
+.bk-made {
+  font-size: 12px; color: var(--txt-dim); margin-bottom: 14px;
+}
+.bk-made strong { color: var(--txt); font-weight: 700; }
+.bk-row {
+  display: flex; align-items: baseline; gap: 12px;
+  padding: 10px 0; border-top: 1px solid var(--line);
+}
+.bk-row-label {
+  flex: 0 0 110px; font-size: 10px; font-weight: 800; letter-spacing: 1px;
+  text-transform: uppercase; color: var(--txt-faint); padding-top: 2px;
+}
+.bk-row-value { flex: 1; font-size: 14px; color: var(--txt); line-height: 1.5; }
+.bk-row-value strong { font-weight: 700; }
+.bk-span { font-family: var(--mono); font-size: 11px; color: var(--txt-faint); margin-left: 6px; }
+.bk-row-sub { display: block; font-size: 12px; color: var(--txt-dim); margin-top: 2px; }
+.bk-note {
+  margin-top: 16px; padding: 11px 13px; border-radius: 10px;
+  background: var(--surface-hi); border: 1px solid var(--line);
+  font-size: 12px; color: var(--txt-dim); line-height: 1.55;
+}
+.bk-note strong { color: var(--txt); font-weight: 700; }

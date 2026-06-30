@@ -75,5 +75,6 @@ document.addEventListener('keydown', e => {
   else if (document.getElementById('diffModal').classList.contains('open')) UI.closeDiff();
   else if (document.getElementById('statsModal')?.classList.contains('open')) STATSMODAL.close();
   else if (document.getElementById('uvSettingsModal')?.classList.contains('open')) UVSETTINGS.close();
+  else if (document.getElementById('backupModal')?.classList.contains('open')) BACKUP.close();
   else if (document.getElementById('aboutModal')?.classList.contains('open')) ABOUT.close();
 });

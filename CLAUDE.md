@@ -195,6 +195,17 @@ ubiplus/
                       Toggle: TOOLS > Hide Cat (localStorage 'ubiplus_cat'; legacy
                       'ubiplus_knight' read as fallback). The loading page (press overlay)
                       animates the same sit/groom sprite frames
+    backup.js       — BACKUP: full database export/import between OSP machines.
+                      Each OSP is isolated (local-only, no shared backend), so this
+                      snapshots one machine's database to a JSON file and loads it on
+                      another. Export bundles ubiplus_units + ubiplus_history +
+                      ubiplus_autopoll + ubiplus_uv_cfg (NOT theme/cat prefs, seed flags
+                      or the tree cache). Import REPLACES inventory + settings + creds but
+                      MERGES history (union by snapshot ts, capped 500) so importing never
+                      destroys snapshots already on the target. TOOLS > Export Data /
+                      Import Data; the import confirm modal (#backupModal) shows a
+                      before/after summary; confirm reloads the page to re-init every
+                      module cleanly. No boot hook — purely event-driven
 server.ps1          — PowerShell HTTP server + direct-TCP session driver
                       (Invoke-UbiSession: prompt-driven login + command via TcpClient)
 .gitignore          — excludes Electron build artefacts: main.js, package.json,
@@ -204,6 +215,7 @@ server.ps1          — PowerShell HTTP server + direct-TCP session driver
 Script load order in index.html:
 `data.js` → `seed.js` → `history.js` → `statuscheck.js` → `powercontrol.js` → `unitmodal.js`
 → `ui.js` → `autopoll.js` → `ipimport.js` → `ubiview.js` → `statsmodal.js` → `lobby.js`
+→ `backup.js`
 
 Boot sequence: `UDATA.load()` → `SEED.run()` → `UVCLIENT.loadCfg()` → `UI.renderAll()` → `AUTOPOLL.init()` → `CAT.init()`
 
@@ -331,6 +343,33 @@ a button/input (so the action buttons still click cleanly). Drop calls
 target's slot and renumbers every unit's `order` sequentially. `renderGrid()` sorts by
 `order` before filtering, so the manual layout survives filter toggles. Migration on
 `UDATA.load()` assigns sequential `order` to any unit missing the field.
+
+### Database export / import — backup.js (added 2026-06-30)
+Each OSP runs its own isolated copy of UbiPlus (local-only, no shared backend), so a
+machine that's been auto-polling for days holds inventory + history the other OSPs never
+see. `BACKUP` (TOOLS > Export Data / Import Data) moves that database between machines:
+
+- **Export** (`BACKUP.export()`): writes `ubiplus-backup-YYYY-MM-DD_HHMM.json` — a bundle
+  `{app:'ubiplus', kind:'backup', version:1, exportedAt, data:{...}}` where `data` holds the
+  raw localStorage strings for `ubiplus_units`, `ubiplus_history`, `ubiplus_autopoll`,
+  `ubiplus_uv_cfg`. Cosmetic prefs (theme, cat), seed flags and the UbiView tree cache are
+  deliberately left out (per-machine / self-refreshing).
+- **Import** (`BACKUP.pick()` → hidden `#backupFile` input → `BACKUP.onFile` → `_prepare`):
+  validates `app==='ubiplus'`, then opens the confirm modal (`#backupModal`) with a
+  before/after summary (units count, history snapshot count + date span + merged total,
+  auto-poll interval, whether UV creds are included). `BACKUP.confirm()` applies:
+  - **history → MERGE**: `_mergeHistory(cur, incoming)` unions by snapshot `ts` (incoming
+    wins ties), sorts oldest→newest, caps at 500. Importing therefore *never* deletes
+    snapshots already recorded on the target — for a fresh OSP it behaves like a full copy.
+  - **inventory / auto-poll / UV creds → REPLACE** from the file when present. Importing UV
+    creds also drops the tree cache so it re-fetches against the new NMS.
+  - then `location.reload()` so every module re-inits from the new localStorage.
+
+Use case it was built for: turn on auto-poll on one OSP, let it accumulate history, then
+Export Data there and Import Data on the OSPs that were never polling so they inherit the
+whole timeline. Note: the shipped OSPs run the packaged exe, so the feature only appears
+after the updated `ubiplus/` assets are redeployed (rebuild the exe, or drop the new files
+into the unpacked build).
 
 ### UbiView NMS integration — Stats modal (added 2026-06-26)
 **The vendor's telnet ACL gives `idfuser` only `get status` and `set link N mode`.**
